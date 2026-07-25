@@ -1,0 +1,15 @@
+dependencies {
+    // AWS IoT SDK (Versión estable)
+    implementation 'com.amazonaws:aws-android-sdk-iot:2.75.0'
+    implementation 'com.amazonaws:aws-android-sdk-cognitoidentityprovider:2.75.0'
+    
+    // Google Play Services para GPS
+    implementation 'com.google.android.gms:play-services-location:21.0.1'
+    
+    // Jetpack Compose (UI)
+    implementation 'androidx.compose.ui:ui:1.5.4'
+    implementation 'androidx.compose.material3:material3:1.1.2'
+    
+    // Corrutinas para async
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+}
