@@ -14,7 +14,7 @@
 **Moto IoT** es un proyecto de hardware y software diseñado para transformar una moto convencional (Ssenda Patagonia 169) en un vehículo conectado e inteligente. El sistema recopila datos críticos de la moto (RPM, voltaje de batería, tiempo de encendido) y del entorno (GPS, aceleración, inclinación) mediante un **Arduino Mega** y un **celular Android**, y los envía a la nube **AWS IoT Core** para su análisis y visualización en tiempo real.
 
 El proyecto integra:
-- **Hardware embebido**: Arduino Mega con sensores y módulos (RTC, SD Card, OLED).
+- **Hardware embebido**: Arduino Mega con sensores y módulos (RTC, SD Card, sensors).
 - **Aplicación móvil**: App Android nativa en Kotlin que lee sensores del celular (GPS, acelerómetro, batería) y se conecta a AWS IoT.
 - **Nube**: AWS IoT Core para ingesta de datos, con posibilidad de análisis con Machine Learning y visualización en dashboards.
 
@@ -42,7 +42,6 @@ El proyecto integra:
 | **Divisor de tensión (10kΩ / 10kΩ)** | Acondiciona la señal de RPM para el Arduino. |
 | **RTC DS3231** | Reloj en tiempo real para fechas y horas históricas. |
 | **Módulo SD Card** | Almacena los datos de forma local (LOG.TXT). |
-| **Pantalla OLED 0.96"** | Muestra RPM, batería y tiempo de encendido en vivo (opcional). |
 | **Cableado y conectores** | Conexiones eléctricas a la moto (señal de RPM, 12V con llave, GND). |
 
 ### 📱 Software (Celular)
@@ -61,9 +60,9 @@ El proyecto integra:
 |:---|:---|
 | **AWS IoT Core** | Ingestiona y enruta los datos MQTT. |
 | **Amazon Cognito** | Autenticación del dispositivo móvil. |
-| **AWS Lambda** | Procesa y transforma los datos (opcional). |
-| **Amazon Timestream / DynamoDB** | Almacena datos históricos para análisis (opcional). |
-| **Amazon QuickSight / Grafana** | Visualización de datos en dashboards (opcional). |
+| **AWS Lambda** | Procesa y transforma los datos. |
+| **Amazon Timestream / DynamoDB** | Almacena datos históricos para análisis. |
+| **Amazon QuickSight / Grafana** | Visualización de datos en dashboards. |
 
 ---
 
