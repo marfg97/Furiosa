@@ -32,3 +32,21 @@ google-services.json
 
 # Android Profiling
 *.hprof
+
+# Certificates and keys
+*.key
+*.pem
+*.crt
+*.cer
+*.pkcs12
+*.jks
+*.keystore
+aws-cloud/iot-core/certs/
+aws-cloud/iot-core/*.key
+aws-cloud/iot-core/*.pem
+.env
+secrets.properties
+gradle.properties
+
+# AWS IoT SDK (dependency)
+aws-iot-device-sdk-python-v2/
