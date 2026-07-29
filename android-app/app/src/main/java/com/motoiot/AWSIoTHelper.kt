@@ -1,4 +1,4 @@
-package com.tuapp.motoiot
+package com.motoiot
 
 import android.content.Context
 import com.amazonaws.auth.CognitoCachingCredentialsProvider
@@ -12,7 +12,7 @@ import org.json.JSONObject
 class AWSIoTHelper(private val context: Context) {
     
     companion object {
-        // ======== CONFIGURACIÓN (CAMBIA ESTOS VALORES) ========
+        // ======== CONFIGURACIÓN  ========
         private const val COGNITO_POOL_ID = "us-east-1:XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
         private const val AWS_REGION = Regions.US_EAST_1
         private const val IOT_ENDPOINT = "a2tqmj5n6nkz0y-ats.iot.us-east-1.amazonaws.com"
@@ -89,30 +89,56 @@ class AWSIoTHelper(private val context: Context) {
         }
     }
     
-    private fun generateAndStoreCertificate(
-        keystorePath: String,
-        onSuccess: () -> Unit,
-        onFailure: (Exception) -> Unit
-    ) {
-        // Esto requiere políticas IAM con permisos para crear certificados
-        // Es más sencillo usar el certificado que ya descargaste
-        // Por ahora, asumimos que ya existe (lo pones manualmente)
-        onFailure(Exception("Certificado no encontrado. Coloca certificate.pem y private.key en res/raw/"))
+    
+// cargar certificados desde res/raw/
+private fun generateAndStoreCertificate(
+    keystorePath: String,
+    onSuccess: () -> Unit,
+    onFailure: (Exception) -> Unit
+) {
+    try {
+        // Cargar certificados desde res/raw/
+        val certInputStream = context.resources.openRawResource(R.raw.certificate)
+        val privateKeyInputStream = context.resources.openRawResource(R.raw.private_key)
+        
+        val certString = certInputStream.bufferedReader().use { it.readText() }
+        val privateKeyString = privateKeyInputStream.bufferedReader().use { it.readText() }
+        
+        // Guardar en Keystore
+        AWSIotKeystoreHelper.saveCertificateAndPrivateKey(
+            CERT_ALIAS,
+            certString,
+            privateKeyString,
+            keystorePath,
+            KEYSTORE_NAME,
+            KEYSTORE_PASSWORD
+        )
+        
+        // Conectar con el nuevo Keystore
+        val keyStore = AWSIotKeystoreHelper.getIotKeystore(
+            CERT_ALIAS, keystorePath, KEYSTORE_NAME, KEYSTORE_PASSWORD
+        )
+        connectWithKeystore(keyStore, onSuccess, onFailure)
+        
+    } catch (e: Exception) {
+        onFailure(Exception("Error al cargar certificados: ${e.message}"))
     }
+}
     
     private fun connectWithKeystore(
-        keyStore: java.security.KeyStore,
-        onSuccess: () -> Unit,
-        onFailure: (Exception) -> Unit
-    ) {
-        mqttManager?.connect(keyStore) { status, throwable ->
+    keyStore: java.security.KeyStore,
+    onSuccess: () -> Unit,
+    onFailure: (Exception) -> Unit
+) {
+    mqttManager?.connect(keyStore, object : AWSIotMqttClientStatusCallback {
+        override fun onStatusChanged(status: AWSIotMqttClientStatus, throwable: Throwable?) {
             if (throwable != null) {
-                onFailure(throwable)
-                return@connect
+                onFailure(Exception(throwable))
+                return
             }
             
             when (status) {
-                AWSIotMqttClientStatusCallback.AWSIotMqttClientStatus.Connected -> {
+                AWSIotMqttClientStatus.Connected -> {
                     isConnected = true
                     onSuccess()
                 }
@@ -121,11 +147,12 @@ class AWSIoTHelper(private val context: Context) {
                 }
             }
         }
-    }
+    })
+}
     
     fun publishData(data: JSONObject) {
         if (!isConnected) {
-            println("❌ No conectado a AWS IoT")
+            Log.W("AWSiotHelper","❌ No conectado a AWS IoT")
             return
         }
         

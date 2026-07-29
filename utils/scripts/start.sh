@@ -33,4 +33,4 @@ fi
 
 # run pub/sub sample app using certificates downloaded in package
 printf "\nRunning pub/sub sample application...\n"
-python3 aws-iot-device-sdk-python-v2/samples/mqtt/mqtt5_x509.py --endpoint aij2tvc7hzox1-ats.iot.us-east-1.amazonaws.com --cert Test_mobile_fury.cert.pem --key Test_mobile_fury.private.key --client_id basicPubSub --topic sdk/test/python --count 0
+python3 aws-iot-device-sdk-python-v2/samples/mqtt/mqtt5_x509.py --endpoint aij2tvc7hzox1-ats.iot.us-east-1.amazonaws.com --cert cel-furiosa.cert.pem --key cel-furiosa.private.key --client_id basicPubSub --topic sdk/test/python --count 0
