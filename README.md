@@ -37,9 +37,14 @@ El proyecto integra:
 | Componente | Función |
 |:---|:---|
 | **Arduino Mega** | Procesador central, lee sensores y controla módulos. |
-| **Regulador DC-DC LM2596** | Convierte 12V de la batería de la moto a 5V para el Arduino. |
-| **Divisor de tensión (10kΩ / 4.7kΩ)** | Mide el voltaje de la batería de la moto. |
-| **Divisor de tensión (10kΩ / 10kΩ)** | Acondiciona la señal de RPM para el Arduino. |
+| **Regulador DC-DC buck impermeable converter** | Convierte 12V de la batería de la moto a 5V, 3A estables para el Arduino. |
+| **componentes electónicos** | sostener el sistema de forma controlada. |
+| **sensor de temperatura de aciete NTC** | variar su resistencia segun su temperatura. |
+| **sensor de nivel de altura delantero** | variar su voltaje entre la posición X,Y. |
+| **sensor de nivel de altura posterior** | variar su voltaje entre la posición X,Y. |
+| **sensor de pastilla** | estimular al testigo 
+| **sensor de nivel de combustible tipo resistivo** | variar su voltaje entre la posición X,Y. |
+| **MPU6050** | medir el movimiento y la orientación de un objeto. |
 | **RTC DS3231** | Reloj en tiempo real para fechas y horas históricas. |
 | **Módulo SD Card** | Almacena los datos de forma local (LOG.TXT). |
 | **Cableado y conectores** | Conexiones eléctricas a la moto (señal de RPM, 12V con llave, GND). |
