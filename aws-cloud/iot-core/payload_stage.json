@@ -1,0 +1,99 @@
+{
+  "session_id": "furiosa_01_20260730_001",
+  "device_id": "furiosa_01",
+  "timestamp": "1785459739",
+  "year": 2026,
+  "month": 7,
+  "day": 30,
+  "date": "2026-07-30",
+
+  "session_start_ts": "1785450000",
+  "session_end_ts": "1785459739",
+  "session_duration_min": 162.3,
+
+  "distance_km": 87.4,
+  "odometer_start_km": 12396.3,
+  "odometer_end_km": 12483.7,
+
+  "speed_avg_kmh": 45.2,
+  "speed_max_kmh": 112.0,
+  "speed_min_kmh": 0.0,
+  "time_stopped_min": 18.4,
+  "time_moving_min": 143.9,
+
+  "rpm_avg": 4200,
+  "rpm_max": 8100,
+  "rpm_min": 800,
+  "rpm_idle_time_min": 12.3,
+  "rpm_redzone_time_min": 4.7,
+  "rpm_redzone_pct": 2.9,
+
+  "engine_temp_avg_c": 89.4,
+  "engine_temp_max_c": 97.5,
+  "engine_temp_over90_min": 12.4,
+  "engine_temp_over95_min": 3.1,
+  "oil_temp_avg_c": 86.2,
+  "oil_temp_max_c": 94.1,
+
+  "voltage_start": 13.1,
+  "voltage_end": 12.6,
+  "voltage_min": 12.4,
+  "voltage_drop": 0.5,
+  "current_avg_amp": 4.1,
+  "current_max_amp": 8.7,
+  "energy_consumed_wh": 53.3,
+
+  "fuel_start_pct": 80.0,
+  "fuel_end_pct": 54.0,
+  "fuel_consumed_pct": 26.0,
+  "fuel_efficiency_km_per_pct": 3.36,
+
+  "throttle_avg_pct": 38.4,
+  "throttle_max_pct": 92.0,
+  "throttle_over80_time_min": 6.2,
+
+  "lean_angle_max_left_deg": 38.4,
+  "lean_angle_max_right_deg": 41.2,
+  "lean_over30_time_min": 3.8,
+  "lean_over40_time_min": 0.4,
+
+  "brake_front_applications": 47,
+  "brake_rear_applications": 31,
+  "hard_brake_events": 3,
+  "brake_pad_front_wear_pct": 0.8,
+  "brake_pad_rear_wear_pct": 0.6,
+  "brake_temp_front_max_c": 112.4,
+  "brake_temp_rear_max_c": 89.3,
+
+  "tire_pressure_front_avg_psi": 32.3,
+  "tire_pressure_rear_avg_psi": 35.8,
+  "tire_temp_front_max_c": 52.4,
+  "tire_temp_rear_max_c": 58.1,
+
+  "vibration_avg": 0.043,
+  "vibration_max": 0.312,
+  "vibration_events_high": 5,
+
+  "hard_accel_events": 4,
+  "hard_brake_events": 3,
+  "hard_lean_events": 2,
+  "aggressive_events_total": 9,
+
+  "route_type": "mixta",
+  "route_urban_pct": 35.0,
+  "route_highway_pct": 45.0,
+  "route_mountain_pct": 20.0,
+
+  "efficiency_score": 82,
+  "driving_score": 74,
+  "maintenance_score": 78,
+  "anomalies_detected": 2,
+  "anomaly_ids": ["ANO_20260730_001", "ANO_20260730_002"],
+
+  "maintenance_oil_due_km": 1516.3,
+  "maintenance_brake_front_due_km": 3200.0,
+  "maintenance_brake_rear_due_km": 4100.0,
+  "maintenance_tire_front_due_km": 6800.0,
+  "maintenance_tire_rear_due_km": 5200.0,
+  "maintenance_chain_due_km": 800.0
+}
