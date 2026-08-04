@@ -1,0 +1,83 @@
+
+{
+  "device_id": "furiosa_01",
+  "timestamp": "1785459739",
+  "year": 2026,
+  "month": 7,
+  "day": 30,
+
+  // SENSORES DEL CEULAR
+  "gps_lat": -12.087832, // módulo GPS, indica la posición norte-sur de la moto
+  "gps_lon": -76.924471, // módulo GPS, indica la posición este-oeste de la moto
+  "gps_altitude_m": 154.3, // módulo GPS, indica la altitud sobre el nivel del mar en metros
+  "gps_speed_kmh": 65.4, //   módulo GPS, indica la velocidad de la moto en kilómetros por hora
+  "gps_bearing_deg": 272.5, // módulo GPS, indica la dirección de la moto en grados (0-360)
+  "gps_accuracy_m": 4.2, // módulo GPS, indica la precisión de la posición en metros
+
+  // Dato crudo del acelerómetro, indica la aceleración en los tres ejes (X, Y, Z) en m/s²
+  "accel_x": -0.0851, // acelerómetro, indica la aceleración en el eje X en m/s²
+  "accel_y": 4.9571, // acelerómetro, indica la aceleración en el eje Y en m/s²
+  "accel_z": 8.4390, // acelerómetro, indica la aceleración en el eje Z en m/s²
+
+  //Dato crudo del acelerómetro después de aplicar un filtro pasa-altos para eliminar la gravedad. Representa solo las fuerzas de movimiento (aceleraciones/frenadas)
+  "accel_linear_x": -0.0234, // acelerómetro, indica la aceleración lineal en el eje X en m/s²
+  "accel_linear_y": 0.1243, // acelerómetro, indica la aceleración lineal en el eje Y en m/s²
+  "accel_linear_z": -0.0812, // acelerómetro, indica la aceleración lineal en el eje Z en m/s²
+
+  //Dato crudo del acelerómetro después de aplicar un filtro pasa-bajos para eliminar las fuerzas de movimiento. Representa solo la gravedad.
+  "gravity_x": -0.0617, // acelerómetro, indica la gravedad en el eje X en m/s²
+  "gravity_y": 4.8328, // acelerómetro, indica la gravedad en el eje Y en m/s²
+  "gravity_z": 8.5202, // acelerómetro, indica la gravedad en el eje Z en m/s²
+
+  // Dato crudo del giroscopio, indica la velocidad de rotación en los tres ejes (X, Y, Z) en rad/s mide la rotación alrededor de cada eje del dispositivo (sin filtrar).
+  "gyro_x": 0.0920, // giroscopio, indica la velocidad de rotación en el eje X en rad/s
+  "gyro_y": 0.0304, // giroscopio, indica la velocidad de rotación en el eje Y en rad/s
+  "gyro_z": 0.0081, // giroscopio, indica la velocidad de rotación en el eje Z en rad/s
+
+  // Dato crudo del giroscopio, indica la rotación en los tres ejes (X, Y, Z) en grados|
+  "rotation_roll_deg": 12.5, // Ángulo de inclinación lateral en grados Dato crudo fusionado de acelerómetro + giroscopio (usando un filtro complementario o Madgwick/Mahony). Indica la inclinación de la moto en curvas.
+  "rotation_pitch_deg": -2.3, // Ángulo de inclinación longitudinal en grados Dato crudo fusionado, indica si la moto está subiendo o bajando una pendiente.
+  "rotation_yaw_deg": 272.5, // Ángulo de orientación en grados (brújula) Dato fusionado del magnetómetro + giroscopio. Es el "heading" o rumbo magnético.
+
+  // Dato crudo del magnetómetro, indica el campo magnético en los tres ejes (X, Y, Z) en µT Incluye el campo magnético terrestre + interferencias metálicas.
+  "mag_x": 11.4000, // magnetómetro, indica el campo magnético en el eje X en µT
+  "mag_y": -15.7125, // magnetómetro, indica el campo magnético en el eje Y en µT
+  "mag_z": 9.4125, // magnetómetro, indica el campo magnético en el eje Z en µT
+
+  
+  "pressure_hpa": 1013.25, // barómetro, indica la presión atmosférica en hectopascales. Se usa para estimar altitud y condiciones climáticas.
+  "ambient_temp_c": 24.8, // Temperatura ambiente en °C Dato crudo del sensor de temperatura del celular
+  "light_lux": 3200.0, // Nivel de luz en lux Dato crudo del sensor de luz ambiental (para ajustar brillo de pantalla)
+  "proximity_cm": 8.0, // Distancia en cm a un objeto Dato crudo del sensor de proximidad (generalmente usado para apagar la pantalla al acercar el oído).
+
+  "battery_cel_percent": 12, // sensor de batería, indica el porcentaje de carga
+  "battery_cel_charging": false, // sensor de batería, indica si está cargando
+
+  // SENSORES DE LA MOTO
+  "rpm": 4200, // sensor del motor, indica las revoluciones por minuto
+  "engine_temp_c": 92.5, // sensor del motor, indica la temperatura del motor en grados Celsius
+  "engine_on": true, // sensor del motor, indica si el motor está encendido
+  "engine_on_seconds": 3600, // sensor del motor, indica el tiempo que el motor ha estado encendido en segundos
+  "throttle_position_pct": 45.2, // Posición del acelerador en porcentaje (0-100%) Dato crudo del sensor TPS (Throttle Position Sensor) o del potenciómetro del manubrio.
+
+  "voltage_bike": 13.1, // batería, indica el voltaje en voltios
+  "current_amp": 4.2, // moto, indica la corriente en amperios
+  "battery_bike_percent": 79, // batería, indica el porcentaje de carga de la batería
+
+  "speed_sensor_kmh": 64.8, //   sensor de velocidad, indica la velocidad de la moto en kilómetros por hora
+  "odometer_km": 12483.7, //   sensor de velocidad, indica la distancia total recorrida por la moto en kilómetros
+
+  "brake_pad_front_pct": 72.0, // sensor de frenos, indica el porcentaje de desgaste de las pastillas de freno delanteras
+  "brake_pad_rear_pct": 65.0, // sensor de frenos, indica el porcentaje de desgaste de las pastillas de freno traseras
+  "brake_temp_front_c": 48.3, // sensor de frenos, indica la temperatura de los frenos delanteros en grados Celsius
+  "brake_temp_rear_c": 41.7,  // sensor de frenos, indica la temperatura de los frenos traseros en grados Celsius
+
+  "tire_pressure_front_psi": 32.5, // sensor de presión de neumáticos, indica la presión del neumático delantero en psi
+  "tire_pressure_rear_psi": 36.0, // sensor de presión de neumáticos, indica la presión del neumático trasero en psi
+  "tire_temp_front_c": 38.4,  // sensor de temperatura de neumáticos, indica la temperatura del neumático delantero en grados Celsius
+  "tire_temp_rear_c": 41.2, // sensor de temperatura de neumáticos, indica la temperatura del neumático trasero en grados Celsius
+
+  "oil_temp_c": 88.6, // sensor de aceite, indica la temperatura del aceite en grados Celsius
+  "fuel_level_pct": 54.0, // sensor de combustible, indica el nivel de combustible en porcentaje
+  "chain_temp_c": 35.2 // sensor de cadena, indica la temperatura de la cadena en grados Celsius
+}

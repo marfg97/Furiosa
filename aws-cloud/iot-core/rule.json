@@ -1,0 +1,31 @@
+{
+    "ruleName": "Furiosa_Data_Rule",
+    "sql": "SELECT * FROM 'moto/data'",
+    "description": "Regla S3 particionado + DynamoDB flat",
+    "createdAt": 1785459405.0,
+    "actions": [
+        {
+            "s3": {
+                "roleArn": "arn:aws:iam::329068432517:role/Furiosa_IoT_Rule_Role",
+                "bucketName": "furiosa-data",
+                "key": "data/year=${year}/month=${month}/day=${day}/${newuuid()}.json"
+            }
+        },
+        {
+            "dynamoDBv2": {
+                "roleArn": "arn:aws:iam::329068432517:role/Furiosa_IoT_Rule_Role",
+                "putItem": {
+                    "tableName": "Furiosa_Telemetry"
+                }
+            }
+        }
+    ],
+    "ruleDisabled": false,
+    "awsIotSqlVersion": "2016-03-23",
+    "errorAction": {
+        "cloudwatchLogs": {
+            "roleArn": "arn:aws:iam::329068432517:role/Furiosa_IoT_Rule_Role",
+            "logGroupName": "/aws/iot/furiosa-errors"
+        }
+    }
+}
