@@ -1,6 +1,6 @@
 <mxfile host="app.diagrams.net">
   <diagram name="Furiosa — Complete Architecture" id="furiosa-complete-v1">
-    <mxGraphModel dx="3214" dy="3007" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="2200" math="0" shadow="0">
+    <mxGraphModel dx="3214" dy="3059" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="2200" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -43,7 +43,7 @@
         <mxCell id="android-sensors" parent="1" style="text;html=1;align=left;strokeColor=#9673a6;fillColor=#f9f0ff;rounded=2;fontSize=11;" value="&lt;ul style=&#39;text-align:left;margin:0;padding-left:16px&#39;&gt;&lt;li&gt;GPS (lat, lng, alt, speed)&lt;/li&gt;&lt;li&gt;Acelerómetro (ax, ay, az)&lt;/li&gt;&lt;li&gt;Giroscopio (gx, gy, gz)&lt;/li&gt;&lt;li&gt;Magnetómetro (mx, my, mz)&lt;/li&gt;&lt;li&gt;Roll / Pitch / Yaw&lt;/li&gt;&lt;li&gt;Barómetro / Presión hPa&lt;/li&gt;&lt;li&gt;Temperatura ambiente&lt;/li&gt;&lt;li&gt;Luz ambiental (lux)&lt;/li&gt;&lt;li&gt;Proximidad&lt;/li&gt;&lt;li&gt;Batería celular&lt;/li&gt;&lt;/ul&gt;" vertex="1">
           <mxGeometry height="220" width="210" x="215" y="200" as="geometry" />
         </mxCell>
-        <mxCell id="edge-usb" edge="1" parent="1" source="arduino" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontStyle=1;fontSize=11;" target="android" value="USB OTG">
+        <mxCell id="edge-usb" edge="1" parent="1" source="arduino" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontStyle=1;fontSize=11;" target="android" value="Bluetooh">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="iot-core" parent="1" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#232F3E;fillColor=#7AA116;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.iot_core;" value="" vertex="1">
