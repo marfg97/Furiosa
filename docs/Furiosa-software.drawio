@@ -376,6 +376,12 @@
             <mxPoint x="1700" y="120" as="targetPoint" />
           </mxGeometry>
         </mxCell>
+        <mxCell id="ohJ8L8oR7hf_3YBth_n4-2" edge="1" parent="1" source="ohJ8L8oR7hf_3YBth_n4-1" style="edgeStyle=none;curved=1;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=12;startSize=8;endSize=8;" target="arduino">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ohJ8L8oR7hf_3YBth_n4-1" parent="1" style="shape=mxgraph.signs.sports.dirt_bike;html=1;pointerEvents=1;fillColor=#000000;strokeColor=none;verticalLabelPosition=bottom;verticalAlign=top;align=center;" value="" vertex="1">
+          <mxGeometry height="94" width="99" x="-580" y="95" as="geometry" />
+        </mxCell>
       </root>
     </mxGraphModel>
   </diagram>
