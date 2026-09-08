@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Furiosa — Dashboard Web</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#050505;--surface:#0d0d0d;--surface2:#161616;--surface3:#1e1e1e;
+  --border:#282828;--border2:#333;
+  --orange:#ff4d00;--orange2:#ff6b35;--red:#cc2200;--red2:#ff3b30;
+  --green:#00c853;--green2:#34c759;
+  --yellow:#ffb300;--blue:#00b0ff;--cyan:#00e5ff;--purple:#7c4dff;
+  --white:#f0f0f0;--mid:#888;--dim:#444;
+  --mono:'Space Mono',monospace;--sans:'Inter',sans-serif;
+}
+body{background:var(--bg);color:var(--white);font-family:var(--sans);padding:20px;min-height:100vh}
+.dash{max-width:1440px;margin:0 auto}
+
+/* HEADER */
+.header{display:flex;justify-content:space-between;align-items:center;padding:16px 0 24px;border-bottom:1px solid var(--border)}
+.header h1{font-family:var(--mono);font-size:24px;font-weight:700;color:var(--orange);letter-spacing:-0.5px}
+.header h1 span{color:var(--white);font-weight:400}
+.header-right{display:flex;align-items:center;gap:20px;font-size:13px;color:var(--mid)}
+.header-right .live{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.2}}
+.header-right .device{color:var(--white);font-family:var(--mono);font-size:12px}
+
+/* GRID */
+.stats-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:20px 0}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px}
+.stat-card .label{font-size:11px;color:var(--mid);text-transform:uppercase;letter-spacing:0.5px;font-weight:600}
+.stat-card .value{font-size:28px;font-weight:800;margin-top:4px;font-family:var(--mono)}
+.stat-card .sub{font-size:12px;color:var(--mid);margin-top:2px}
+.stat-card .trend{font-size:11px;margin-left:8px;font-weight:600}
+.trend.up{color:var(--green)}.trend.down{color:var(--red)}
+
+/* MAIN LAYOUT */
+.main-grid{display:grid;grid-template-columns:1.6fr 1fr;gap:16px;margin-top:20px}
+
+/* SESSIONS TABLE */
+.sessions-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px}
+.sessions-card .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.sessions-card .card-header h2{font-size:16px;font-weight:600}
+.sessions-card .card-header .badge{background:var(--surface2);padding:4px 12px;border-radius:20px;font-size:11px;color:var(--mid)}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:10px 8px;color:var(--mid);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.3px;border-bottom:1px solid var(--border)}
+td{padding:10px 8px;border-bottom:1px solid var(--border2)}
+td .highlight{color:var(--orange);font-weight:600}
+td .score{display:inline-block;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600}
+.score.good{background:rgba(0,200,83,0.15);color:var(--green)}
+.score.avg{background:rgba(255,179,0,0.15);color:var(--yellow)}
+.score.bad{background:rgba(204,34,0,0.15);color:var(--red)}
+tr:hover{background:rgba(255,255,255,0.02)}
+
+/* MAINTENANCE */
+.maintenance-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px}
+.maintenance-card .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.maintenance-card .card-header h2{font-size:16px;font-weight:600}
+.maintenance-card .card-header .badge{background:var(--surface2);padding:4px 12px;border-radius:20px;font-size:11px;color:var(--mid)}
+
+.maint-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border2)}
+.maint-item:last-child{border-bottom:0}
+.maint-item .left{display:flex;align-items:center;gap:12px}
+.maint-item .icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px}
+.maint-item .info .name{font-size:13px;font-weight:500}
+.maint-item .info .detail{font-size:11px;color:var(--mid)}
+.maint-item .right{text-align:right}
+.maint-item .right .km{font-size:15px;font-weight:700;font-family:var(--mono)}
+.maint-item .right .status{font-size:10px;padding:2px 10px;border-radius:10px;display:inline-block;margin-top:2px}
+.status.ok{background:rgba(0,200,83,0.15);color:var(--green)}
+.status.watch{background:rgba(255,179,0,0.15);color:var(--yellow)}
+.status.soon{background:rgba(255,107,53,0.15);color:var(--orange2)}
+.status.critical{background:rgba(204,34,0,0.15);color:var(--red)}
+
+/* ALERTAS */
+.alert-bar{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 18px;margin-top:16px;display:flex;align-items:center;gap:14px}
+.alert-bar .alert-icon{font-size:20px}
+.alert-bar .alert-text{font-size:13px;color:var(--mid);flex:1}
+.alert-bar .alert-text strong{color:var(--white)}
+.alert-bar .alert-date{font-size:11px;color:var(--dim)}
+
+/* CHART PLACEHOLDER */
+.chart-placeholder{background:var(--surface2);border-radius:8px;padding:16px;margin-top:16px;text-align:center;color:var(--mid);font-size:13px;border:1px dashed var(--border2)}
+.chart-placeholder .bars{display:flex;justify-content:space-around;align-items:flex-end;height:80px;margin-top:12px;gap:6px}
+.chart-placeholder .bars .bar{width:100%;background:var(--orange);border-radius:4px 4px 0 0;min-height:8px;transition:height 0.6s}
+.chart-placeholder .bars .bar:nth-child(1){height:45px}
+.chart-placeholder .bars .bar:nth-child(2){height:65px}
+.chart-placeholder .bars .bar:nth-child(3){height:30px}
+.chart-placeholder .bars .bar:nth-child(4){height:55px}
+.chart-placeholder .bars .bar:nth-child(5){height:75px}
+.chart-placeholder .bars .bar:nth-child(6){height:40px}
+.chart-placeholder .bars .bar:nth-child(7){height:60px}
+.chart-placeholder .bars .bar:nth-child(8){height:50px}
+.chart-placeholder .bars .bar:nth-child(9){height:35px}
+.chart-placeholder .bars .bar:nth-child(10){height:70px}
+.chart-placeholder .bars .bar:nth-child(11){height:48px}
+.chart-placeholder .bars .bar:nth-child(12){height:58px}
+.chart-placeholder .bars .bar:nth-child(13){height:42px}
+.chart-placeholder .bars .bar:nth-child(14){height:68px}
+.chart-placeholder .bars .bar-label{font-size:9px;color:var(--dim);margin-top:4px}
+
+/* responsive */
+@media(max-width:1024px){.stats-grid{grid-template-columns:repeat(3,1fr)}.main-grid{grid-template-columns:1fr}}
+@media(max-width:600px){.stats-grid{grid-template-columns:1fr 1fr}.header{flex-direction:column;gap:12px}}
+</style>
+</head>
+<body>
+<div class="dash">
+
+  <!-- HEADER -->
+  <div class="header">
+    <h1>FURIOSA <span>· Dashboard</span></h1>
+    <div class="header-right">
+      <span><span class="live"></span> en vivo</span>
+      <span class="device">furiosa_01</span>
+      <span>|</span>
+      <span id="last-update">Actualizado: hace 2s</span>
+    </div>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="label">Total Kilometraje</div>
+      <div class="value" style="color:var(--cyan)">12,483</div>
+      <div class="sub">km · +87.4 hoy</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Sesiones</div>
+      <div class="value" style="color:var(--white)">47</div>
+      <div class="sub">este mes · +12 <span class="trend up">↑ 8%</span></div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Score Promedio</div>
+      <div class="value" style="color:var(--green)">74</div>
+      <div class="sub">/100 · <span class="trend up">↑ 3 pts</span></div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Eficiencia Promedio</div>
+      <div class="value" style="color:var(--yellow)">68</div>
+      <div class="sub">/100 · consumo 4.2 L/100km</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Próximo Servicio</div>
+      <div class="value" style="color:var(--orange2)">312</div>
+      <div class="sub">km · <span style="color:var(--yellow)">⚠ Aceite</span></div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main-grid">
+    <!-- SESSIONS -->
+    <div class="sessions-card">
+      <div class="card-header">
+        <h2>📋 Historial de Rutas</h2>
+        <span class="badge">últimas 10 sesiones</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Fecha</th><th>Distancia</th><th>Duración</th><th>Vel. Prom</th><th>Score</th><th>RPM Max</th></tr>
+          </thead>
+          <tbody id="sessions-body">
+            <tr>
+              <td>2026-08-31</td>
+              <td><span class="highlight">87.4 km</span></td>
+              <td>2h 18m</td>
+              <td>38 km/h</td>
+              <td><span class="score good">82</span></td>
+              <td>7,200</td>
+            </tr>
+            <tr>
+              <td>2026-08-30</td>
+              <td>62.1 km</td>
+              <td>1h 45m</td>
+              <td>35 km/h</td>
+              <td><span class="score avg">65</span></td>
+              <td>6,800</td>
+            </tr>
+            <tr>
+              <td>2026-08-29</td>
+              <td>102.8 km</td>
+              <td>2h 56m</td>
+              <td>35 km/h</td>
+              <td><span class="score good">78</span></td>
+              <td>8,100</td>
+            </tr>
+            <tr>
+              <td>2026-08-28</td>
+              <td>45.3 km</td>
+              <td>1h 12m</td>
+              <td>38 km/h</td>
+              <td><span class="score good">85</span></td>
+              <td>6,500</td>
+            </tr>
+            <tr>
+              <td>2026-08-27</td>
+              <td>73.6 km</td>
+              <td>2h 04m</td>
+              <td>35 km/h</td>
+              <td><span class="score avg">71</span></td>
+              <td>7,400</td>
+            </tr>
+            <tr>
+              <td>2026-08-26</td>
+              <td>34.2 km</td>
+              <td>0h 58m</td>
+              <td>35 km/h</td>
+              <td><span class="score bad">52</span></td>
+              <td>7,800</td>
+            </tr>
+            <tr>
+              <td>2026-08-25</td>
+              <td>91.0 km</td>
+              <td>2h 32m</td>
+              <td>36 km/h</td>
+              <td><span class="score good">80</span></td>
+              <td>7,100</td>
+            </tr>
+            <tr>
+              <td>2026-08-24</td>
+              <td>56.7 km</td>
+              <td>1h 38m</td>
+              <td>35 km/h</td>
+              <td><span class="score avg">68</span></td>
+              <td>6,900</td>
+            </tr>
+            <tr>
+              <td>2026-08-23</td>
+              <td>118.5 km</td>
+              <td>3h 12m</td>
+              <td>37 km/h</td>
+              <td><span class="score good">79</span></td>
+              <td>8,500</td>
+            </tr>
+            <tr>
+              <td>2026-08-22</td>
+              <td>48.9 km</td>
+              <td>1h 25m</td>
+              <td>34 km/h</td>
+              <td><span class="score avg">62</span></td>
+              <td>6,200</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <!-- mini chart -->
+      <div class="chart-placeholder">
+        <span>📊 Distancia por sesión (últimos 10 días)</span>
+        <div class="bars">
+          <div style="display:flex;flex-direction:column;align-items:center;flex:1">
+            <div class="bar" style="height:45px;background:var(--orange)"></div>
+            <div class="bar-label">22</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;flex:1">
+            <div class="bar" style="height:65px;background:var(--orange)"></div>
+            <div class="bar-label">23</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;flex:1">
+            <div class="bar" style="height:30px;background:var(--orange)"></div>
+            <div class="bar-label">24</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;flex:1">
+            <div class="bar" style="height:55px;background:var(--orange)"></div>
+            <div class="bar-label">25</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;flex:1">
+            <div class="bar" style="height:75px;background:var(--orange)"></div>
+            <div class="bar-label">26</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;flex:1">
+            <div class="bar" style="height:40px;background:var(--orange)"></div>
+            <div class="bar-label">27</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;flex:1">
+            <div class="bar" style="height:60px;background:var(--orange)"></div>
+            <div class="bar-label">28</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;flex:1">
+            <div class="bar" style="height:50px;background:var(--orange)"></div>
+            <div class="bar-label">29</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;flex:1">
+            <div class="bar" style="height:35px;background:var(--orange)"></div>
+            <div class="bar-label">30</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;flex:1">
+            <div class="bar" style="height:70px;background:var(--orange)"></div>
+            <div class="bar-label">31</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAINTENANCE -->
+    <div class="maintenance-card">
+      <div class="card-header">
+        <h2>🔧 Mantenimiento Predictivo</h2>
+        <span class="badge">actualizado hoy</span>
+      </div>
+
+      <div class="maint-item">
+        <div class="left">
+          <div class="icon" style="background:rgba(255,77,0,0.12);color:var(--orange)">⛽</div>
+          <div class="info">
+            <div class="name">Aceite motor</div>
+            <div class="detail">último cambio: 8,000 km</div>
+          </div>
+        </div>
+        <div class="right">
+          <div class="km" style="color:var(--yellow)">312 km</div>
+          <span class="status watch">⚠ Atención</span>
+        </div>
+      </div>
+
+      <div class="maint-item">
+        <div class="left">
+          <div class="icon" style="background:rgba(0,200,83,0.12);color:var(--green)">🛞</div>
+          <div class="info">
+            <div class="name">Freno Delantero</div>
+            <div class="detail">pastillas: 72% vida útil</div>
+          </div>
+        </div>
+        <div class="right">
+          <div class="km" style="color:var(--green)">1,845 km</div>
+          <span class="status ok">✅ OK</span>
+        </div>
+      </div>
+
+      <div class="maint-item">
+        <div class="left">
+          <div class="icon" style="background:rgba(0,200,83,0.12);color:var(--green)">🛞</div>
+          <div class="info">
+            <div class="name">Freno Trasero</div>
+            <div class="detail">pastillas: 65% vida útil</div>
+          </div>
+        </div>
+        <div class="right">
+          <div class="km" style="color:var(--green)">2,123 km</div>
+          <span class="status ok">✅ OK</span>
+        </div>
+      </div>
+
+      <div class="maint-item">
+        <div class="left">
+          <div class="icon" style="background:rgba(255,179,0,0.12);color:var(--yellow)">⛓️</div>
+          <div class="info">
+            <div class="name">Cadena</div>
+            <div class="detail">última revisión: 10,000 km</div>
+          </div>
+        </div>
+        <div class="right">
+          <div class="km" style="color:var(--yellow)">876 km</div>
+          <span class="status watch">⚠ Atención</span>
+        </div>
+      </div>
+
+      <div class="maint-item">
+        <div class="left">
+          <div class="icon" style="background:rgba(0,200,83,0.12);color:var(--green)">🛞</div>
+          <div class="info">
+            <div class="name">Llanta Delantera</div>
+            <div class="detail">presión: 32.5 PSI</div>
+          </div>
+        </div>
+        <div class="right">
+          <div class="km" style="color:var(--green)">2,456 km</div>
+          <span class="status ok">✅ OK</span>
+        </div>
+      </div>
+
+      <div class="maint-item" style="border-bottom:0">
+        <div class="left">
+          <div class="icon" style="background:rgba(0,200,83,0.12);color:var(--green)">🛞</div>
+          <div class="info">
+            <div class="name">Llanta Trasera</div>
+            <div class="detail">presión: 36.0 PSI</div>
+          </div>
+        </div>
+        <div class="right">
+          <div class="km" style="color:var(--green)">2,789 km</div>
+          <span class="status ok">✅ OK</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ALERT -->
+  <div class="alert-bar" id="alert-bar">
+    <span class="alert-icon">⚠️</span>
+    <span class="alert-text"><strong>Próximo servicio:</strong> El aceite del motor necesita cambio en aproximadamente <strong>312 km</strong> (7 días a tu ritmo actual).</span>
+    <span class="alert-date">2026-08-31 · 19:24</span>
+  </div>
+
+</div>
+<script>
+// Simulación de actualización de stats
+const stats = {
+  total_km: 12483,
+  sessions: 47,
+  score_avg: 74,
+  efficiency: 68,
+  next_service: 312
+};
+
+// Actualizar hora
+function updateTime() {
+  const now = new Date();
+  document.getElementById('last-update').textContent = 'Actualizado: ' + now.toLocaleTimeString('es', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+setInterval(updateTime, 2000);
+updateTime();
+
+// Simular cambio de alerta
+const alerts = [
+  { icon: '⚠️', text: '<strong>Próximo servicio:</strong> El aceite del motor necesita cambio en aproximadamente <strong>312 km</strong> (7 días a tu ritmo actual).', date: '2026-08-31 · 19:24' },
+  { icon: '🔴', text: '<strong>¡Atención!</strong> Temperatura del motor elevada (92°C) en la última sesión. Revisa el sistema de refrigeración.', date: '2026-08-30 · 15:12' },
+  { icon: '✅', text: '<strong>Sistema OK:</strong> Todos los componentes están dentro de los parámetros normales. Buen trabajo.', date: '2026-08-29 · 10:05' }
+];
+
+let alertIndex = 0;
+setInterval(() => {
+  const alert = alerts[alertIndex % alerts.length];
+  document.querySelector('.alert-icon').textContent = alert.icon;
+  document.querySelector('.alert-text').innerHTML = alert.text;
+  document.querySelector('.alert-date').textContent = alert.date;
+  alertIndex++;
+}, 8000);
+</script>
+</body>
+</html>

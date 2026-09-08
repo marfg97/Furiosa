@@ -1,0 +1,9 @@
+{
+    "defaultClientId": "cel-furiosa",
+    "thingName": "cel-furiosa",
+    "thingId": "dce8c226-f830-44d9-bd5b-31c99a017f66",
+    "thingArn": "arn:aws:iot:us-east-1:329068432517:thing/cel-furiosa",
+    "thingTypeName": "cel-bike",
+    "attributes": {},
+    "version": 2
+}

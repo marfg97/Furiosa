@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Furiosa — Segundo Tablero</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#050505;--surface:#0f0f0f;--surface2:#161616;--border:#1e1e1e;
+  --orange:#ff4d00;--orange2:#ff6b35;--red:#cc2200;
+  --green:#00c853;--yellow:#ffb300;--blue:#00b0ff;--cyan:#00e5ff;
+  --white:#f0f0f0;--mid:#666;--dim:#333;
+  --mono:'Space Mono',monospace;--sans:'Space Grotesk',sans-serif;
+}
+html,body{width:100%;height:100%;background:#111;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.phone{
+  width:860px;height:400px;background:var(--bg);
+  border-radius:24px;border:5px solid #2a2a2a;
+  box-shadow:0 0 80px rgba(255,77,0,.12),0 0 0 1px #333;
+  display:flex;flex-direction:column;overflow:hidden;position:relative;
+}
+.phone::before{content:'';position:absolute;left:50%;top:0;transform:translateX(-50%);width:70px;height:5px;background:#2a2a2a;border-radius:0 0 5px 5px;z-index:10}
+/* STATUS */
+.sb{height:20px;padding:0 18px;display:flex;align-items:center;justify-content:space-between;background:#020202;flex-shrink:0}
+.sb span{font-family:var(--mono);font-size:8px;color:var(--mid)}
+.live{width:5px;height:5px;border-radius:50%;background:var(--green);box-shadow:0 0 5px var(--green);animation:p 1.5s ease-in-out infinite;display:inline-block;margin-right:4px}
+@keyframes p{0%,100%{opacity:1}50%{opacity:.2}}
+/* GRID */
+.grid{flex:1;display:grid;grid-template-columns:140px 1fr 150px;gap:2px;background:#0a0a0a;padding:2px}
+/* PANEL */
+.panel{background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;padding:6px 8px}
+.lbl{font-family:var(--mono);font-size:7px;color:var(--mid);letter-spacing:.14em;text-transform:uppercase;position:absolute;top:6px;left:10px}
+.unit{font-family:var(--mono);font-size:8px;color:var(--mid);margin-top:2px}
+/* GEAR */
+.gear-panel{background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;position:relative}
+.gear-panel::before{content:'';position:absolute;inset:0;background:radial-gradient(circle,rgba(255,77,0,.05) 0%,transparent 70%)}
+.glbl{font-family:var(--mono);font-size:8px;color:var(--mid);letter-spacing:.15em}
+.gnum{font-family:var(--mono);font-size:88px;font-weight:700;color:var(--orange);line-height:1;text-shadow:0 0 40px rgba(255,77,0,.35)}
+.gpips{display:flex;gap:3px;margin-top:2px}
+.pip{width:16px;height:3px;border-radius:2px;background:var(--dim)}
+.pip.on{background:var(--orange)}
+/* CENTER */
+.center{display:grid;grid-template-rows:1fr 1fr;gap:2px;background:#0a0a0a}
+.center-top{display:grid;grid-template-columns:1fr;gap:2px;background:#0a0a0a}
+.center-bot{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:2px;background:#0a0a0a}
+.map-p{background:var(--surface2);display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;overflow:hidden;padding:0}
+.map-p iframe{width:100%;height:100%;border:0;filter:invert(1) hue-rotate(180deg) brightness(0.9)}
+.map-overlay{position:absolute;bottom:6px;right:10px;font-family:var(--mono);font-size:7px;color:rgba(255,255,255,0.3);background:rgba(0,0,0,0.6);padding:2px 8px;border-radius:4px}
+/* KM */
+.kmv{font-family:var(--mono);font-size:28px;font-weight:700;color:var(--cyan);line-height:1}
+/* BATTS */
+.brow{display:flex;gap:6px;align-items:center;margin-bottom:4px}
+.bico{position:relative;width:28px;height:13px;border:1.5px solid var(--mid);border-radius:2px}
+.bico::after{content:'';position:absolute;right:-4px;top:3px;width:3px;height:6px;background:var(--mid);border-radius:0 2px 2px 0}
+.bfil{position:absolute;left:1px;top:1px;bottom:1px;border-radius:1px;transition:width .5s}
+.bpct{font-family:var(--mono);font-size:12px;font-weight:700}
+.blbl{font-family:var(--mono);font-size:7px;color:var(--mid)}
+/* FUEL */
+.fuel-wrap{position:relative;width:60px;height:60px}
+.fuel-wrap svg{transform:rotate(-90deg)}
+.fuel-txt{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.fpct{font-family:var(--mono);font-size:16px;font-weight:700;color:var(--white)}
+.fkm{font-family:var(--mono);font-size:8px;color:var(--mid)}
+/* TIRES */
+.tires-p{background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;position:relative;padding:8px 4px}
+.tire-item{display:flex;flex-direction:column;align-items:center;gap:2px;width:120px}
+.tire-hdr{display:flex;justify-content:space-between;align-items:baseline;width:100%}
+.tnm{font-family:var(--mono);font-size:7px;color:var(--mid)}
+.tpsi{font-family:var(--mono);font-size:16px;font-weight:700}
+.tbg{width:100%;height:3px;background:var(--dim);border-radius:2px;overflow:hidden}
+.tfil{height:100%;border-radius:2px;transition:width .4s}
+.ttmp{font-family:var(--mono);font-size:7px;color:var(--mid)}
+.tdiv{width:60px;height:1px;background:var(--dim)}
+/* SCORE */
+.sc-wrap{position:relative;width:50px;height:50px}
+.sc-wrap svg{transform:rotate(-90deg)}
+.sc-txt{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.snum{font-family:var(--mono);font-size:16px;font-weight:700;color:var(--green)}
+.slbl{font-family:var(--mono);font-size:7px;color:var(--mid)}
+/* ALERT */
+.abar{height:16px;background:#020202;border-top:1px solid #0d0d0d;display:flex;align-items:center;overflow:hidden;flex-shrink:0}
+.atick{font-family:var(--mono);font-size:8px;color:var(--mid);white-space:nowrap;animation:tick 22s linear infinite}
+@keyframes tick{from{transform:translateX(900px)}to{transform:translateX(-100%)}}
+.atick.ok{color:#2a5}
+.atick.warn{color:var(--yellow)}
+.atick.crit{color:var(--red)}
+/* TEMP */
+.tv{font-family:var(--mono);font-size:28px;font-weight:700;line-height:1}
+.tok{color:var(--green)}.twrn{color:var(--yellow)}.tcrit{color:var(--red)}
+.temp-info{display:flex;gap:12px;margin-top:3px}
+.temp-info div{display:flex;align-items:center;gap:2px}
+.temp-info span{font-family:var(--mono);font-size:9px}
+.temp-info .lbl-sm{font-family:var(--mono);font-size:6px;color:var(--mid)}
+/* waypoint */
+.wp-info{font-family:var(--mono);font-size:7px;color:var(--mid);margin-top:4px;display:flex;gap:10px}
+.wp-info span{display:flex;align-items:center;gap:4px}
+.wp-dot{width:5px;height:5px;border-radius:50%;display:inline-block}
+.wp-dot.green{background:var(--green)}
+.wp-dot.orange{background:var(--orange)}
+/* COMPACT */
+.compact{padding:4px 6px}
+.compact .lbl{font-size:6px;top:4px;left:7px}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="sb">
+    <span><span class="live"></span>FURIOSA · furiosa_01</span>
+    <span id="sb-r">65 km/h · 19:24 · 4G ●</span>
+  </div>
+  <div class="grid">
+    <!-- GEAR -->
+    <div class="gear-panel">
+      <div class="glbl">Marcha</div>
+      <div class="gnum" id="gear">3</div>
+      <div class="gpips">
+        <div class="pip on" id="p1"></div><div class="pip on" id="p2"></div>
+        <div class="pip on" id="p3"></div><div class="pip" id="p4"></div>
+        <div class="pip" id="p5"></div><div class="pip" id="p6"></div>
+      </div>
+      <div class="wp-info">
+        <span><span class="wp-dot green"></span> 12 km</span>
+        <span><span class="wp-dot orange"></span> 34 km</span>
+      </div>
+      <div class="unit">próximos waypoints</div>
+    </div>
+    <!-- CENTER -->
+    <div class="center">
+      <!-- FILA SUPERIOR: MAPA -->
+      <div class="center-top">
+        <div class="map-p">
+          <div class="lbl">Ruta en Vivo</div>
+          <iframe id="gmap" src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d50000!2d-77.028333!3d-12.043333!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMTLCsDAyJzM2LjAiUyA3N8KwMDEnNDIuMCJX!5e0!3m2!1ses!2spe!4v1700000000000" loading="lazy"></iframe>
+          <div class="map-overlay">● 2 waypoints</div>
+        </div>
+      </div>
+      <!-- FILA INFERIOR: 4 PANELES -->
+      <div class="center-bot">
+        <!-- TEMP MOTOR -->
+        <div class="panel compact">
+          <div class="lbl">Motor</div>
+          <div class="tv twrn" id="temp">89°</div>
+          <div class="unit" id="tstat" style="color:var(--yellow)">● Atención</div>
+          <div class="temp-info">
+            <div><span style="color:var(--blue)" id="press">1013</span><span class="lbl-sm">hPa</span></div>
+            <div><span style="color:var(--white)" id="ambt">24.8</span><span class="lbl-sm">°C</span></div>
+          </div>
+          <div class="unit" id="alt" style="font-size:6px">Altitud: 154 m</div>
+        </div>
+
+        <!-- Km ruta -->
+        <div class="panel compact">
+          <div class="lbl">Ruta Actual</div>
+          <div class="kmv" id="km">87.4</div>
+          <div class="unit">km</div>
+        </div>
+
+        <!-- Baterías -->
+        <div class="panel compact">
+          <div class="lbl">Baterías</div>
+          <div class="brow">
+            <div class="bico"><div class="bfil" id="bm-f" style="width:79%;background:var(--green)"></div></div>
+            <div><div class="bpct" id="bm">79%</div><div class="blbl">moto</div></div>
+          </div>
+          <div class="brow">
+            <div class="bico"><div class="bfil" id="bc-f" style="width:12%;background:var(--red)"></div></div>
+            <div><div class="bpct" id="bc" style="color:var(--red)">12%</div><div class="blbl">celular</div></div>
+          </div>
+        </div>
+
+        <!-- Fuel -->
+        <div class="panel compact">
+          <div class="lbl">Combustible</div>
+          <div class="fuel-wrap">
+            <svg width="60" height="60" viewBox="0 0 60 60">
+              <circle cx="30" cy="30" r="24" fill="none" stroke="#1a1a1a" stroke-width="5"/>
+              <circle cx="30" cy="30" r="24" fill="none" stroke="var(--orange)" stroke-width="5"
+                id="fcircle" stroke-dasharray="150.8" stroke-dashoffset="67.8" stroke-linecap="round"/>
+            </svg>
+            <div class="fuel-txt">
+              <div class="fpct" id="fpct">55%</div>
+              <div class="fkm" id="fkm">~124km</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- TIRES -->
+    <div class="tires-p">
+      <div class="lbl" style="position:relative;top:0;left:0;margin-bottom:2px">Neumáticos</div>
+      <div class="tire-item">
+        <div class="tire-hdr">
+          <span class="tnm">DELANTERA</span>
+          <span class="tpsi" id="tf-psi" style="color:var(--green)">32.5</span>
+        </div>
+        <div class="tbg"><div class="tfil" id="tf-bar" style="width:81%;background:var(--green)"></div></div>
+        <div style="display:flex;justify-content:space-between;width:100%">
+          <span class="ttmp" id="tf-tmp">38°C</span><span class="blbl">PSI</span>
+        </div>
+      </div>
+      <div class="tdiv"></div>
+      <div class="tire-item">
+        <div class="tire-hdr">
+          <span class="tnm">TRASERA</span>
+          <span class="tpsi" id="tr-psi" style="color:var(--green)">36.0</span>
+        </div>
+        <div class="tbg"><div class="tfil" id="tr-bar" style="width:90%;background:var(--green)"></div></div>
+        <div style="display:flex;justify-content:space-between;width:100%">
+          <span class="ttmp" id="tr-tmp">41°C</span><span class="blbl">PSI</span>
+        </div>
+      </div>
+      <div class="tdiv"></div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+        <div class="tnm">TEMP. RUTA</div>
+        <div style="font-family:var(--mono);font-size:12px;color:var(--white)" id="routetemp">24.8°C</div>
+        <div style="font-family:var(--mono);font-size:7px;color:var(--mid);display:flex;gap:8px">
+          <span id="wp-count">2 waypoints</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="abar">
+    <div class="atick ok" id="atick">● Sistema OK · Sesión 87.4 km · Aceite: 312 km restantes · Score conducción: 74/100 · Próximo servicio: aceite esta semana ·</div>
+  </div>
+</div>
+<script>
+let s={spd:65,rpm:4200,temp:89,gear:3,fuel:55,km:87.4,bm:79,bc:12,tf:32.5,tr:36.0,tft:38,trt:41,sc:82,ambt:24.8,press:1013,alt:154};
+function cl(v,a,b){return Math.min(Math.max(v,a),b)}
+function upd(){
+  s.spd =cl(s.spd +(Math.random()-.48)*4,0,160);
+  s.temp=cl(s.temp+(Math.random()-.5)*.7,75,105);
+  s.km +=0.009;
+  s.fuel=cl(s.fuel-.0007,0,100);
+  s.tft =cl(s.tft+(Math.random()-.5)*.08,30,80);
+  s.trt =cl(s.trt+(Math.random()-.5)*.08,30,80);
+  s.ambt=cl(s.ambt+(Math.random()-.5)*.04,15,35);
+  s.press=cl(s.press+(Math.random()-.5)*0.3,1005,1022);
+  s.alt=cl(s.alt+(Math.random()-.5)*0.2,150,160);
+  // gear from speed
+  const gs=[[0,10,1],[10,25,2],[25,45,3],[45,70,4],[70,100,5],[100,999,6]];
+  for(const[a,b,g] of gs){if(s.spd>=a&&s.spd<b){s.gear=g;break}}
+  // speedbar
+  document.getElementById('sb-r').textContent=Math.round(s.spd)+' km/h · '+new Date().toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'})+' · 4G ●';
+  // temp
+  const te=document.getElementById('temp'),ts=document.getElementById('tstat');
+  te.textContent=Math.round(s.temp)+'°';
+  if(s.temp>=95){te.className='tv tcrit';ts.textContent='● Crítico';ts.style.color='var(--red)'}
+  else if(s.temp>=88){te.className='tv twrn';ts.textContent='● Atención';ts.style.color='var(--yellow)'}
+  else{te.className='tv tok';ts.textContent='● Normal';ts.style.color='var(--green)'}
+  // gear
+  document.getElementById('gear').textContent=s.gear;
+  for(let i=1;i<=6;i++)document.getElementById('p'+i).className='pip'+(i<=s.gear?' on':'');
+  // km
+  document.getElementById('km').textContent=s.km.toFixed(1);
+  // fuel
+  const fo=150.8*(1-s.fuel/100);
+  document.getElementById('fcircle').setAttribute('stroke-dashoffset',fo.toFixed(1));
+  document.getElementById('fcircle').setAttribute('stroke',s.fuel<20?'var(--red)':s.fuel<35?'var(--yellow)':'var(--orange)');
+  document.getElementById('fpct').textContent=Math.round(s.fuel)+'%';
+  document.getElementById('fkm').textContent='~'+Math.round(s.fuel*2.3)+'km';
+  // batteries
+  const bmf=document.getElementById('bm-f');
+  bmf.style.width=s.bm+'%';bmf.style.background=s.bm<20?'var(--red)':s.bm<40?'var(--yellow)':'var(--green)';
+  document.getElementById('bm').textContent=Math.round(s.bm)+'%';
+  const bcf=document.getElementById('bc-f');
+  bcf.style.width=s.bc+'%';bcf.style.background=s.bc<20?'var(--red)':'var(--yellow)';
+  const bce=document.getElementById('bc');
+  bce.textContent=Math.round(s.bc)+'%';bce.style.color=s.bc<20?'var(--red)':'var(--white)';
+  // tires
+  const tfE=document.getElementById('tf-psi');
+  tfE.textContent=s.tf.toFixed(1);tfE.style.color=s.tf<26?'var(--red)':s.tf<29?'var(--yellow)':'var(--green)';
+  document.getElementById('tf-bar').style.width=Math.min(s.tf/40*100,100)+'%';
+  document.getElementById('tf-bar').style.background=s.tf<26?'var(--red)':s.tf<29?'var(--yellow)':'var(--green)';
+  document.getElementById('tf-tmp').textContent=Math.round(s.tft)+'°C';
+  const trE=document.getElementById('tr-psi');
+  trE.textContent=s.tr.toFixed(1);trE.style.color=s.tr<28?'var(--red)':s.tr<32?'var(--yellow)':'var(--green)';
+  document.getElementById('tr-bar').style.width=Math.min(s.tr/42*100,100)+'%';
+  document.getElementById('tr-bar').style.background=s.tr<28?'var(--red)':s.tr<32?'var(--yellow)':'var(--green)';
+  document.getElementById('tr-tmp').textContent=Math.round(s.trt)+'°C';
+  // score
+  document.getElementById('snum').textContent=s.sc;
+  document.getElementById('scircle').setAttribute('stroke-dashoffset',(138.2*(1-s.sc/100)).toFixed(1));
+  // ambient
+  document.getElementById('press').textContent=Math.round(s.press);
+  document.getElementById('ambt').textContent=s.ambt.toFixed(1);
+  document.getElementById('alt').textContent='Altitud: '+Math.round(s.alt)+' m';
+  document.getElementById('routetemp').textContent=s.ambt.toFixed(1)+'°C';
+  // alert
+  const at=document.getElementById('atick');
+  if(s.temp>=95){at.className='atick crit';at.textContent='⚠ TEMPERATURA CRÍTICA: '+Math.round(s.temp)+'°C — Reduce RPM y para el motor'}
+  else if(s.bc<=12){at.className='atick warn';at.textContent='⚠ Batería celular baja: '+Math.round(s.bc)+'% — Conecta el cargador'}
+  else{at.className='atick ok';at.textContent='● Sistema OK · Sesión '+s.km.toFixed(1)+' km · Aceite: 312 km restantes · Score conducción: 74/100 ·'}
+}
+setInterval(upd,650);upd();
+</script>
+</body>
+</html>

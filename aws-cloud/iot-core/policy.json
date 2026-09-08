@@ -1,0 +1,9 @@
+{
+    "policyName": "cel-furiosa-Policy",
+    "policyArn": "arn:aws:iot:us-east-1:329068432517:policy/cel-furiosa-Policy",
+    "policyDocument": "{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    {\n      \"Effect\": \"Allow\",\n      \"Action\": [\n        \"iot:Publish\",\n        \"iot:Receive\",\n        \"iot:PublishRetain\"\n      ],\n      \"Resource\": [\n        \"arn:aws:iot:us-east-1:329068432517:topic/sdk/test/java\",\n        \"arn:aws:iot:us-east-1:329068432517:topic/sdk/test/python\",\n        \"arn:aws:iot:us-east-1:329068432517:topic/sdk/test/js\"\n      ]\n    },\n    {\n      \"Effect\": \"Allow\",\n      \"Action\": [\n        \"iot:Subscribe\"\n      ],\n      \"Resource\": [\n        \"arn:aws:iot:us-east-1:329068432517:topicfilter/sdk/test/java\",\n        \"arn:aws:iot:us-east-1:329068432517:topicfilter/sdk/test/python\",\n        \"arn:aws:iot:us-east-1:329068432517:topicfilter/sdk/test/js\"\n      ]\n    },\n    {\n      \"Effect\": \"Allow\",\n      \"Action\": [\n        \"iot:Connect\"\n      ],\n      \"Resource\": [\n        \"arn:aws:iot:us-east-1:329068432517:client/sdk-java\",\n        \"arn:aws:iot:us-east-1:329068432517:client/basicPubSub\",\n        \"arn:aws:iot:us-east-1:329068432517:client/sdk-nodejs-*\"\n      ]\n    }\n  ]\n}",
+    "defaultVersionId": "1",
+    "creationDate": "2026-07-29T01:30:12.849000-05:00",
+    "lastModifiedDate": "2026-07-29T01:30:12.849000-05:00",
+    "generationId": "52508f68ee72d420195a1449377643c1bfa098df5d1d36cf7fabb47f92afb819"
+}
