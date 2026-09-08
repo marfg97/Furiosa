@@ -17,7 +17,7 @@
 
   "speed_avg_kmh": 45.2,
   "speed_max_kmh": 112.0,
-  "speed_min_kmh": 0.0,
+  // "speed_min_kmh": 0.0,
   "time_stopped_min": 18.4,
   "time_moving_min": 143.9,
 
@@ -57,11 +57,11 @@
   "lean_over30_time_min": 3.8,
   "lean_over40_time_min": 0.4,
 
-  "brake_front_applications": 47,
-  "brake_rear_applications": 31,
-  "hard_brake_events": 3,
-  "brake_pad_front_wear_pct": 0.8,
-  "brake_pad_rear_wear_pct": 0.6,
+  // "brake_front_applications": 47,
+  // "brake_rear_applications": 31,
+  // "hard_brake_events": 3,
+  // "brake_pad_front_wear_pct": 0.8,
+  // "brake_pad_rear_wear_pct": 0.6,
   "brake_temp_front_max_c": 112.4,
   "brake_temp_rear_max_c": 89.3,
 

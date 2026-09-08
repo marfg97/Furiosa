@@ -1,0 +1,72 @@
+name: Deploy AWS Lambdas
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'aws-cloud/lambda/**'
+      - '.github/workflows/deploy-lambda.yml'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  detect-and-deploy:
+    runs-on: ubuntu-latest
+    outputs:
+      changed_lambdas: ${{ steps.filter.outputs.changed_lambdas }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect changed Lambda files
+        id: filter
+        run: |
+          CHANGED=$(git diff --name-only HEAD HEAD~1 | grep 'aws-cloud/lambda/.*\.py' | sed 's|aws-cloud/lambda/||' | sed 's|\.py||' | tr '\n' ',' | sed 's/,$//')
+          echo "changed_lambdas=$CHANGED" >> $GITHUB_OUTPUT
+          echo "Cambios detectados: $CHANGED"
+
+  deploy:
+    needs: detect-and-deploy
+    if: needs.detect-and-deploy.outputs.changed_lambdas != ''
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        lambda: ${{ fromJson(format('["{0}"]', join(split(needs.detect-and-deploy.outputs.changed_lambdas, ','), '","'))) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: us-east-1
+
+      - name: Package Lambda
+        run: |
+          mkdir -p package
+          cp aws-cloud/lambda/${{ matrix.lambda }}.py package/lambda_function.py
+          if [ -f aws-cloud/lambda/requirements.txt ]; then
+            pip install -r aws-cloud/lambda/requirements.txt -t package/
+          fi
+          cd package && zip -r ../lambda.zip . && cd ..
+
+      - name: Deploy Lambda
+        run: |
+          FUNCTION_NAME="${{ matrix.lambda }}"
+          if aws lambda get-function --function-name $FUNCTION_NAME --region us-east-1 2>/dev/null; then
+            echo "✅ Actualizando función existente: $FUNCTION_NAME"
+            aws lambda update-function-code \
+              --function-name $FUNCTION_NAME \
+              --zip-file fileb://lambda.zip \
+              --region us-east-1
+          else
+            echo "⚠️ La función $FUNCTION_NAME no existe. Crea la función primero en AWS."
+          fi
