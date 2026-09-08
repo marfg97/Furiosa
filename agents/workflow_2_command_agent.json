@@ -1,0 +1,356 @@
+{
+  "name": "Furiosa — Command Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "furiosa/command",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-command",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            { "id": "f1", "name": "text",      "value": "={{ $json.body.text }}",                          "type": "string" },
+            { "id": "f2", "name": "device_id", "value": "={{ $json.body.device_id ?? 'furiosa_01' }}",     "type": "string" },
+            { "id": "f3", "name": "mode",      "value": "={{ $json.body.mode ?? 'riding' }}",              "type": "string" },
+            { "id": "f4", "name": "tag",       "value": "={{ $json.body.tag ?? 'waypoint' }}",             "type": "string" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-fields",
+      "name": "Normalizar Input",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://lambda.us-east-1.amazonaws.com/2015-03-31/functions/furiosa-voice-command-handler/invocations",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "aws",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type",          "value": "application/json" },
+            { "name": "X-Amz-Invocation-Type", "value": "RequestResponse" }
+          ]
+        },
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\":      \"{{ $json.text }}\",\n  \"device_id\": \"{{ $json.device_id }}\",\n  \"mode\":      \"{{ $json.mode }}\"\n}",
+        "options": {
+          "response": { "response": { "responseFormat": "json" } }
+        }
+      },
+      "id": "http-lambda",
+      "name": "Invocar Lambda L4",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [700, 300],
+      "credentials": {
+        "aws": { "id": "furiosa-aws-cred", "name": "Furiosa-AWS" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "let body = $json.body ?? $json;\nif (typeof body === 'string') body = JSON.parse(body);\nlet response = body;\nif (typeof body.body === 'string') response = JSON.parse(body.body);\n\nreturn [{\n  json: {\n    response_text:   response.response_text ?? 'Comando procesado',\n    action:          response.action ?? 'none',\n    action_params:   response.action_params ?? {},\n    intent:          response.intent ?? 'COMMAND',\n    language:        response.language ?? 'es',\n    device_id:       $('Normalizar Input').item.json.device_id,\n    tag:             $('Normalizar Input').item.json.tag,\n  }\n}];"
+      },
+      "id": "code-parse",
+      "name": "Extraer Acción",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 300]
+    },
+    {
+      "parameters": {
+        "mode": "rules",
+        "rules": {
+          "values": [
+            { "conditions": { "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict" }, "conditions": [{ "leftValue": "={{ $json.action }}", "rightValue": "reset_oil",         "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "reset_oil" },
+            { "conditions": { "options": { "caseSensitive": false }, "conditions": [{ "leftValue": "={{ $json.action }}", "rightValue": "reset_brake_front", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "reset_brake_front" },
+            { "conditions": { "options": { "caseSensitive": false }, "conditions": [{ "leftValue": "={{ $json.action }}", "rightValue": "reset_brake_rear",  "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "reset_brake_rear" },
+            { "conditions": { "options": { "caseSensitive": false }, "conditions": [{ "leftValue": "={{ $json.action }}", "rightValue": "reset_chain",        "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "reset_chain" },
+            { "conditions": { "options": { "caseSensitive": false }, "conditions": [{ "leftValue": "={{ $json.action }}", "rightValue": "reset_tire_front",   "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "reset_tire_front" },
+            { "conditions": { "options": { "caseSensitive": false }, "conditions": [{ "leftValue": "={{ $json.action }}", "rightValue": "reset_tire_rear",    "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "reset_tire_rear" },
+            { "conditions": { "options": { "caseSensitive": false }, "conditions": [{ "leftValue": "={{ $json.action }}", "rightValue": "mark_waypoint",      "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "mark_waypoint" },
+            { "conditions": { "options": { "caseSensitive": false }, "conditions": [{ "leftValue": "={{ $json.action }}", "rightValue": "start_recording",    "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "start_recording" },
+            { "conditions": { "options": { "caseSensitive": false }, "conditions": [{ "leftValue": "={{ $json.action }}", "rightValue": "stop_recording",     "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "stop_recording" }
+          ]
+        },
+        "options": { "fallbackOutput": "extra" }
+      },
+      "id": "switch-action",
+      "name": "Switch Acción",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [1140, 300]
+    },
+    {
+      "parameters": {
+        "operation": "put",
+        "table": { "__rl": true, "value": "Furiosa_Maintenance_Resets", "mode": "list" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "device_id":  "={{ $('Extraer Acción').item.json.device_id }}",
+            "timestamp":  "={{ String(Math.floor(Date.now() / 1000)) }}",
+            "component":  "oil",
+            "reset_date": "={{ new Date().toISOString().split('T')[0] }}",
+            "reset_by":   "voice_command_n8n"
+          }
+        },
+        "options": {}
+      },
+      "id": "dynamo-reset-oil",
+      "name": "Reset Aceite",
+      "type": "n8n-nodes-base.awsDynamoDB",
+      "typeVersion": 1,
+      "position": [1380, 60],
+      "credentials": { "aws": { "id": "furiosa-aws-cred", "name": "Furiosa-AWS" } }
+    },
+    {
+      "parameters": {
+        "operation": "put",
+        "table": { "__rl": true, "value": "Furiosa_Maintenance_Resets", "mode": "list" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "device_id":  "={{ $('Extraer Acción').item.json.device_id }}",
+            "timestamp":  "={{ String(Math.floor(Date.now() / 1000)) }}",
+            "component":  "brake_front",
+            "reset_date": "={{ new Date().toISOString().split('T')[0] }}",
+            "reset_by":   "voice_command_n8n"
+          }
+        },
+        "options": {}
+      },
+      "id": "dynamo-reset-bf",
+      "name": "Reset Freno Delantero",
+      "type": "n8n-nodes-base.awsDynamoDB",
+      "typeVersion": 1,
+      "position": [1380, 160],
+      "credentials": { "aws": { "id": "furiosa-aws-cred", "name": "Furiosa-AWS" } }
+    },
+    {
+      "parameters": {
+        "operation": "put",
+        "table": { "__rl": true, "value": "Furiosa_Maintenance_Resets", "mode": "list" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "device_id":  "={{ $('Extraer Acción').item.json.device_id }}",
+            "timestamp":  "={{ String(Math.floor(Date.now() / 1000)) }}",
+            "component":  "brake_rear",
+            "reset_date": "={{ new Date().toISOString().split('T')[0] }}",
+            "reset_by":   "voice_command_n8n"
+          }
+        },
+        "options": {}
+      },
+      "id": "dynamo-reset-br",
+      "name": "Reset Freno Trasero",
+      "type": "n8n-nodes-base.awsDynamoDB",
+      "typeVersion": 1,
+      "position": [1380, 260],
+      "credentials": { "aws": { "id": "furiosa-aws-cred", "name": "Furiosa-AWS" } }
+    },
+    {
+      "parameters": {
+        "operation": "put",
+        "table": { "__rl": true, "value": "Furiosa_Maintenance_Resets", "mode": "list" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "device_id":  "={{ $('Extraer Acción').item.json.device_id }}",
+            "timestamp":  "={{ String(Math.floor(Date.now() / 1000)) }}",
+            "component":  "chain",
+            "reset_date": "={{ new Date().toISOString().split('T')[0] }}",
+            "reset_by":   "voice_command_n8n"
+          }
+        },
+        "options": {}
+      },
+      "id": "dynamo-reset-chain",
+      "name": "Reset Cadena",
+      "type": "n8n-nodes-base.awsDynamoDB",
+      "typeVersion": 1,
+      "position": [1380, 360],
+      "credentials": { "aws": { "id": "furiosa-aws-cred", "name": "Furiosa-AWS" } }
+    },
+    {
+      "parameters": {
+        "operation": "put",
+        "table": { "__rl": true, "value": "Furiosa_Maintenance_Resets", "mode": "list" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "device_id":  "={{ $('Extraer Acción').item.json.device_id }}",
+            "timestamp":  "={{ String(Math.floor(Date.now() / 1000)) }}",
+            "component":  "tire_front",
+            "reset_date": "={{ new Date().toISOString().split('T')[0] }}",
+            "reset_by":   "voice_command_n8n"
+          }
+        },
+        "options": {}
+      },
+      "id": "dynamo-reset-tf",
+      "name": "Reset Llanta Delantera",
+      "type": "n8n-nodes-base.awsDynamoDB",
+      "typeVersion": 1,
+      "position": [1380, 460],
+      "credentials": { "aws": { "id": "furiosa-aws-cred", "name": "Furiosa-AWS" } }
+    },
+    {
+      "parameters": {
+        "operation": "put",
+        "table": { "__rl": true, "value": "Furiosa_Maintenance_Resets", "mode": "list" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "device_id":  "={{ $('Extraer Acción').item.json.device_id }}",
+            "timestamp":  "={{ String(Math.floor(Date.now() / 1000)) }}",
+            "component":  "tire_rear",
+            "reset_date": "={{ new Date().toISOString().split('T')[0] }}",
+            "reset_by":   "voice_command_n8n"
+          }
+        },
+        "options": {}
+      },
+      "id": "dynamo-reset-tr",
+      "name": "Reset Llanta Trasera",
+      "type": "n8n-nodes-base.awsDynamoDB",
+      "typeVersion": 1,
+      "position": [1380, 560],
+      "credentials": { "aws": { "id": "furiosa-aws-cred", "name": "Furiosa-AWS" } }
+    },
+    {
+      "parameters": {
+        "operation": "put",
+        "table": { "__rl": true, "value": "Furiosa_Session_State", "mode": "list" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "device_id":    "={{ $('Extraer Acción').item.json.device_id }}",
+            "recording":    "true",
+            "last_updated": "={{ String(Math.floor(Date.now() / 1000)) }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "dynamo-start-rec",
+      "name": "Iniciar Grabación",
+      "type": "n8n-nodes-base.awsDynamoDB",
+      "typeVersion": 1,
+      "position": [1380, 660],
+      "credentials": { "aws": { "id": "furiosa-aws-cred", "name": "Furiosa-AWS" } }
+    },
+    {
+      "parameters": {
+        "operation": "put",
+        "table": { "__rl": true, "value": "Furiosa_Session_State", "mode": "list" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "device_id":    "={{ $('Extraer Acción').item.json.device_id }}",
+            "recording":    "false",
+            "last_updated": "={{ String(Math.floor(Date.now() / 1000)) }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "dynamo-stop-rec",
+      "name": "Detener Grabación",
+      "type": "n8n-nodes-base.awsDynamoDB",
+      "typeVersion": 1,
+      "position": [1380, 760],
+      "credentials": { "aws": { "id": "furiosa-aws-cred", "name": "Furiosa-AWS" } }
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://furiosa-data.s3.us-east-1.amazonaws.com/waypoints/{{ $('Extraer Acción').item.json.device_id }}/{{ Math.floor(Date.now()/1000) }}_{{ $('Extraer Acción').item.json.tag }}.json",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "aws",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"device_id\":  \"{{ $('Extraer Acción').item.json.device_id }}\",\n  \"timestamp\":  \"{{ Math.floor(Date.now()/1000) }}\",\n  \"tag\":        \"{{ $('Extraer Acción').item.json.tag }}\",\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}",
+        "options": {}
+      },
+      "id": "s3-waypoint",
+      "name": "Guardar Waypoint S3",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1380, 860],
+      "credentials": { "aws": { "id": "furiosa-aws-cred", "name": "Furiosa-AWS" } }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "id": "merge-branches",
+      "name": "Merge",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [1620, 460]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"response_text\":   \"{{ $('Extraer Acción').item.json.response_text }}\",\n  \"action\":          \"{{ $('Extraer Acción').item.json.action }}\",\n  \"action_executed\": true,\n  \"language\":        \"{{ $('Extraer Acción').item.json.language }}\"\n}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "respond-webhook",
+      "name": "Responder Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1840, 460]
+    }
+  ],
+  "connections": {
+    "Webhook":         { "main": [[{ "node": "Normalizar Input", "type": "main", "index": 0 }]] },
+    "Normalizar Input": { "main": [[{ "node": "Invocar Lambda L4", "type": "main", "index": 0 }]] },
+    "Invocar Lambda L4": { "main": [[{ "node": "Extraer Acción", "type": "main", "index": 0 }]] },
+    "Extraer Acción":  { "main": [[{ "node": "Switch Acción", "type": "main", "index": 0 }]] },
+    "Switch Acción": {
+      "main": [
+        [{ "node": "Reset Aceite",            "type": "main", "index": 0 }],
+        [{ "node": "Reset Freno Delantero",   "type": "main", "index": 0 }],
+        [{ "node": "Reset Freno Trasero",     "type": "main", "index": 0 }],
+        [{ "node": "Reset Cadena",            "type": "main", "index": 0 }],
+        [{ "node": "Reset Llanta Delantera",  "type": "main", "index": 0 }],
+        [{ "node": "Reset Llanta Trasera",    "type": "main", "index": 0 }],
+        [{ "node": "Guardar Waypoint S3",     "type": "main", "index": 0 }],
+        [{ "node": "Iniciar Grabación",       "type": "main", "index": 0 }],
+        [{ "node": "Detener Grabación",       "type": "main", "index": 0 }]
+      ]
+    },
+    "Reset Aceite":           { "main": [[{ "node": "Merge", "type": "main", "index": 0 }]] },
+    "Reset Freno Delantero":  { "main": [[{ "node": "Merge", "type": "main", "index": 0 }]] },
+    "Reset Freno Trasero":    { "main": [[{ "node": "Merge", "type": "main", "index": 0 }]] },
+    "Reset Cadena":           { "main": [[{ "node": "Merge", "type": "main", "index": 0 }]] },
+    "Reset Llanta Delantera": { "main": [[{ "node": "Merge", "type": "main", "index": 0 }]] },
+    "Reset Llanta Trasera":   { "main": [[{ "node": "Merge", "type": "main", "index": 0 }]] },
+    "Guardar Waypoint S3":    { "main": [[{ "node": "Merge", "type": "main", "index": 0 }]] },
+    "Iniciar Grabación":      { "main": [[{ "node": "Merge", "type": "main", "index": 0 }]] },
+    "Detener Grabación":      { "main": [[{ "node": "Merge", "type": "main", "index": 0 }]] },
+    "Merge":                  { "main": [[{ "node": "Responder Webhook", "type": "main", "index": 0 }]] }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "tags": [{ "name": "furiosa" }, { "name": "command" }],
+  "active": false
+}
