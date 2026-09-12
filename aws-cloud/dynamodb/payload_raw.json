@@ -67,15 +67,16 @@
   "speed_sensor_kmh": 64.8, //   sensor de velocidad, indica la velocidad de la moto en kilómetros por hora
   "odometer_km": 12483.7, //   sensor de velocidad, indica la distancia total recorrida por la moto en kilómetros
 
-  "brake_pad_front_pct": 72.0, // sensor de frenos, indica el porcentaje de desgaste de las pastillas de freno delanteras
-  "brake_pad_rear_pct": 65.0, // sensor de frenos, indica el porcentaje de desgaste de las pastillas de freno traseras
+  // "brake_pad_front_pct": 72.0, // sensor de frenos, indica el porcentaje de desgaste de las pastillas de freno delanteras
+  // "brake_pad_rear_pct": 65.0, // sensor de frenos, indica el porcentaje de desgaste de las pastillas de freno traseras
+  "indicador_cambio_freno": "verde", // sensor de frenos, indica el estado del indicador de cambio de freno (verde, amarillo, rojo)
   "brake_temp_front_c": 48.3, // sensor de frenos, indica la temperatura de los frenos delanteros en grados Celsius
   "brake_temp_rear_c": 41.7,  // sensor de frenos, indica la temperatura de los frenos traseros en grados Celsius
 
   "tire_pressure_front_psi": 32.5, // sensor de presión de neumáticos, indica la presión del neumático delantero en psi
   "tire_pressure_rear_psi": 36.0, // sensor de presión de neumáticos, indica la presión del neumático trasero en psi
-  "tire_temp_front_c": 38.4,  // sensor de temperatura de neumáticos, indica la temperatura del neumático delantero en grados Celsius
-  "tire_temp_rear_c": 41.2, // sensor de temperatura de neumáticos, indica la temperatura del neumático trasero en grados Celsius
+  // "tire_temp_front_c": 38.4,  // sensor de temperatura de neumáticos, indica la temperatura del neumático delantero en grados Celsius
+  // "tire_temp_rear_c": 41.2, // sensor de temperatura de neumáticos, indica la temperatura del neumático trasero en grados Celsius
 
   "oil_temp_c": 88.6, // sensor de aceite, indica la temperatura del aceite en grados Celsius
   "fuel_level_pct": 54.0, // sensor de combustible, indica el nivel de combustible en porcentaje

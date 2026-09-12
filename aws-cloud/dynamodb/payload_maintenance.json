@@ -1,0 +1,12 @@
+{
+  "device_id": "furiosa_01",
+  "component": "oil",
+  "remaining_km": 1516.3,
+  "threshold_km": 500.0,
+  "urgency": "watch",
+  "percentage_used": 78.5,
+  "last_reset_odometer_km": 12483.7,
+  "service_interval_km": 5000,
+  "updated_timestamp": 1785459739,
+  "last_prediction_session": "furiosa_01_20260730_001"
+}

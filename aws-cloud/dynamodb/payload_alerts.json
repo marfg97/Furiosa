@@ -1,0 +1,31 @@
+{
+  "device_id": "furiosa_01",
+  "alert_timestamp": 1785459739,
+  "alert_id": "ALT_20260730_001",
+  "alert_type": "temperature_critical",
+  "severity": "critical",
+  
+  "title": "Temperatura del motor crítica",
+  "message": "El motor alcanzó 97.5°C durante 3.1 minutos. Reduce RPM.",
+  "recommendation": "Reduce velocidad y revisa el sistema de refrigeración",
+  
+  "trigger_value": 97.5,
+  "trigger_threshold": 95.0,
+  "source": "L1_realtime_monitor",
+  
+  "session_id": "furiosa_01_20260730_001",
+  
+  "sent_push": true,
+  "sent_timestamp": 1785459745,
+  "acknowledged": false,
+  "acknowledged_timestamp": null,
+  
+  "read": false,
+  
+  "context_data": {
+    "rpm_at_alert": 7200,
+    "speed_at_alert": 65.2,
+    "latitude": -12.043333,
+    "longitude": -77.028333
+  }
+}

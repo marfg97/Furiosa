@@ -1,0 +1,27 @@
+{
+  "session_id": "furiosa_01_20260730_001",
+  "device_id": "furiosa_01",
+  "predict_timestamp": 1785459739,
+  
+  "remaining_km_oil": 1516.3,
+  "remaining_km_brake_front": 3200.0,
+  "remaining_km_brake_rear": 4100.0,
+  "remaining_km_chain": 800.0,
+  "remaining_km_tire_front": 6800.0,
+  "remaining_km_tire_rear": 5200.0,
+  
+  "urgency_oil": "watch",
+  "urgency_brake_front": "ok",
+  "urgency_brake_rear": "ok",
+  "urgency_chain": "critical",
+  "urgency_tire_front": "ok",
+  "urgency_tire_rear": "ok",
+  
+  "most_critical_component": "chain",
+  "most_critical_urgency": "critical",
+  "most_critical_remaining_km": 800.0,
+  
+  "confidence_score": 0.94,
+  "model_version": "v20260817_120000",
+  "prediction_source": "L3_maintenance_predict"
+}
