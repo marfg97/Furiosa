@@ -1,0 +1,174 @@
+{
+  "name": "Furiosa — Analyst Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "furiosa/analyst",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-analyst",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            { "id": "f1", "name": "text",      "value": "={{ $json.body.text }}",                      "type": "string" },
+            { "id": "f2", "name": "device_id", "value": "={{ $json.body.device_id ?? 'furiosa_01' }}", "type": "string" },
+            { "id": "f3", "name": "mode",      "value": "dashboard",                                   "type": "string" },
+            { "id": "f4", "name": "days_back", "value": "={{ $json.body.days_back ?? 30 }}",           "type": "number" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-fields",
+      "name": "Normalizar Input",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "operation": "scan",
+        "table": { "__rl": true, "value": "Furiosa_Sessions", "mode": "list" },
+        "filterExpression": "device_id = :d",
+        "expressionAttributeValues": {
+          "attributes": [
+            { "attribute": ":d", "value": "={{ $('Normalizar Input').item.json.device_id }}", "type": "S" }
+          ]
+        },
+        "options": { "limit": 30 }
+      },
+      "id": "dynamo-sessions",
+      "name": "DynamoDB Sesiones",
+      "type": "n8n-nodes-base.awsDynamoDB",
+      "typeVersion": 1,
+      "position": [700, 160],
+      "credentials": { "aws": { "id": "furiosa-aws-cred", "name": "Furiosa-AWS" } }
+    },
+    {
+      "parameters": {
+        "operation": "query",
+        "table": { "__rl": true, "value": "Furiosa_Predictions", "mode": "list" },
+        "keyConditionExpression": "device_id = :d",
+        "expressionAttributeValues": {
+          "attributes": [
+            { "attribute": ":d", "value": "={{ $('Normalizar Input').item.json.device_id }}", "type": "S" }
+          ]
+        },
+        "options": { "scanIndexForward": false, "limit": 10 }
+      },
+      "id": "dynamo-predictions",
+      "name": "DynamoDB Predicciones",
+      "type": "n8n-nodes-base.awsDynamoDB",
+      "typeVersion": 1,
+      "position": [700, 300],
+      "credentials": { "aws": { "id": "furiosa-aws-cred", "name": "Furiosa-AWS" } }
+    },
+    {
+      "parameters": {
+        "operation": "query",
+        "table": { "__rl": true, "value": "Furiosa_Maintenance", "mode": "list" },
+        "keyConditionExpression": "device_id = :d",
+        "expressionAttributeValues": {
+          "attributes": [
+            { "attribute": ":d", "value": "={{ $('Normalizar Input').item.json.device_id }}", "type": "S" }
+          ]
+        },
+        "options": { "scanIndexForward": false, "limit": 5 }
+      },
+      "id": "dynamo-maintenance",
+      "name": "DynamoDB Mantenimiento",
+      "type": "n8n-nodes-base.awsDynamoDB",
+      "typeVersion": 1,
+      "position": [700, 440],
+      "credentials": { "aws": { "id": "furiosa-aws-cred", "name": "Furiosa-AWS" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const text      = $('Normalizar Input').item.json.text;\nconst device_id = $('Normalizar Input').item.json.device_id;\n\n// Sesiones\nconst sessions = $('DynamoDB Sesiones').item.json.Items ?? [];\nconst totalDist   = sessions.reduce((a, s) => a + parseFloat(s.distance_km?.N ?? 0), 0);\nconst totalHours  = sessions.reduce((a, s) => a + parseFloat(s.duration_min?.N ?? 0), 0) / 60;\nconst maxSpeed    = Math.max(...sessions.map(s => parseFloat(s.speed_max_kmh?.N ?? 0)));\nconst avgDriving  = sessions.length > 0\n  ? sessions.reduce((a, s) => a + parseFloat(s.driving_score?.N ?? 0), 0) / sessions.length\n  : 0;\nconst avgEffic    = sessions.length > 0\n  ? sessions.reduce((a, s) => a + parseFloat(s.efficiency_score?.N ?? 0), 0) / sessions.length\n  : 0;\n\nconst routeDist = { urbana: 0, carretera: 0, montana: 0, mixta: 0 };\nsessions.forEach(s => {\n  const rt = s.route_type?.S ?? 'mixta';\n  routeDist[rt] = (routeDist[rt] ?? 0) + parseFloat(s.distance_km?.N ?? 0);\n});\n\n// Predicciones\nconst preds = $('DynamoDB Predicciones').item.json.Items ?? [];\nconst latestPred = preds[0] ?? {};\n\n// Mantenimiento\nconst maint = $('DynamoDB Mantenimiento').item.json.Items ?? [];\nconst latestMaint = maint[0] ?? {};\n\nconst stats = {\n  resumen: {\n    total_sesiones:      sessions.length,\n    distancia_total_km:  totalDist.toFixed(1),\n    horas_totales:       totalHours.toFixed(1),\n    velocidad_max_km:    isFinite(maxSpeed) ? maxSpeed.toFixed(1) : '0',\n    score_conduccion_avg: avgDriving.toFixed(0),\n    score_eficiencia_avg: avgEffic.toFixed(0),\n  },\n  rutas: routeDist,\n  mantenimiento_actual: {\n    aceite_km:         latestMaint.remaining_km_oil?.N ?? 'N/A',\n    freno_del_km:      latestMaint.remaining_km_brake_front?.N ?? 'N/A',\n    freno_tra_km:      latestMaint.remaining_km_brake_rear?.N ?? 'N/A',\n    cadena_km:         latestMaint.remaining_km_chain?.N ?? 'N/A',\n    llanta_del_km:     latestMaint.remaining_km_tire_front?.N ?? 'N/A',\n    llanta_tra_km:     latestMaint.remaining_km_tire_rear?.N ?? 'N/A',\n    urgencia:          latestMaint.urgency?.S ?? 'ok',\n    componente_critico: latestMaint.most_critical_component?.S ?? 'ninguno',\n  },\n  ultimas_predicciones: preds.slice(0, 3).map(p => ({\n    session_id:     p.session_id?.S ?? '',\n    urgencia:       p.urgency?.S ?? 'ok',\n    componente:     p.most_critical_component?.S ?? '',\n    km_restantes:   p.most_critical_remaining_km?.N ?? '0',\n  })),\n  ultimas_5_sesiones: sessions.slice(0, 5).map(s => ({\n    fecha:        s.date?.S ?? 'N/A',\n    distancia_km: s.distance_km?.N ?? '0',\n    duracion_min: s.duration_min?.N ?? '0',\n    score:        s.driving_score?.N ?? '0',\n    eficiencia:   s.efficiency_score?.N ?? '0',\n    ruta:         s.route_type?.S ?? 'N/A',\n  })),\n};\n\nreturn [{ json: { text, device_id, stats: JSON.stringify(stats, null, 2) } }];"
+      },
+      "id": "code-stats",
+      "name": "Calcular Estadísticas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [940, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://lambda.us-east-1.amazonaws.com/2015-03-31/functions/furiosa-voice-command-handler/invocations",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "aws",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type",          "value": "application/json" },
+            { "name": "X-Amz-Invocation-Type", "value": "RequestResponse" }
+          ]
+        },
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\":      \"{{ $json.text }}\",\n  \"device_id\": \"{{ $json.device_id }}\",\n  \"mode\":      \"dashboard\",\n  \"context\":   {{ $json.stats }}\n}",
+        "options": {
+          "response": { "response": { "responseFormat": "json" } }
+        }
+      },
+      "id": "http-lambda",
+      "name": "Invocar Lambda L4",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1160, 300],
+      "credentials": { "aws": { "id": "furiosa-aws-cred", "name": "Furiosa-AWS" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "let body = $json.body ?? $json;\nif (typeof body === 'string') body = JSON.parse(body);\nlet response = body;\nif (typeof body.body === 'string') response = JSON.parse(body.body);\n\nconst stats = $('Calcular Estadísticas').item.json.stats;\n\nreturn [{\n  json: {\n    response_text: response.response_text ?? 'No pude generar el análisis',\n    intent:        response.intent ?? 'HISTORY',\n    language:      response.language ?? 'es',\n    stats:         stats,\n    success:       true,\n  }\n}];"
+      },
+      "id": "code-parse",
+      "name": "Parsear Respuesta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1380, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"response_text\": \"{{ $json.response_text }}\",\n  \"intent\":        \"{{ $json.intent }}\",\n  \"language\":      \"{{ $json.language }}\",\n  \"stats\":         {{ $json.stats }},\n  \"success\":       true\n}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "respond-webhook",
+      "name": "Responder Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1600, 300]
+    }
+  ],
+  "connections": {
+    "Webhook":         { "main": [[{ "node": "Normalizar Input", "type": "main", "index": 0 }]] },
+    "Normalizar Input": {
+      "main": [[
+        { "node": "DynamoDB Sesiones",      "type": "main", "index": 0 },
+        { "node": "DynamoDB Predicciones",  "type": "main", "index": 0 },
+        { "node": "DynamoDB Mantenimiento", "type": "main", "index": 0 }
+      ]]
+    },
+    "DynamoDB Sesiones":      { "main": [[{ "node": "Calcular Estadísticas", "type": "main", "index": 0 }]] },
+    "DynamoDB Predicciones":  { "main": [[{ "node": "Calcular Estadísticas", "type": "main", "index": 1 }]] },
+    "DynamoDB Mantenimiento": { "main": [[{ "node": "Calcular Estadísticas", "type": "main", "index": 2 }]] },
+    "Calcular Estadísticas": { "main": [[{ "node": "Invocar Lambda L4",  "type": "main", "index": 0 }]] },
+    "Invocar Lambda L4":     { "main": [[{ "node": "Parsear Respuesta",  "type": "main", "index": 0 }]] },
+    "Parsear Respuesta":     { "main": [[{ "node": "Responder Webhook",  "type": "main", "index": 0 }]] }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "tags": [{ "name": "furiosa" }, { "name": "analyst" }],
+  "active": false
+}

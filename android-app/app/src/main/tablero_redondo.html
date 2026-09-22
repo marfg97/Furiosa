@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Furiosa — Tablero Redondo</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#030303;--surface:#0d0d0d;--s2:#131313;
+  --orange:#ff4d00;--o2:#ff6b35;--red:#cc2200;
+  --green:#00c853;--yellow:#ffb300;--blue:#29b6f6;
+  --white:#f0f0f0;--mid:#555;--dim:#2a2a2a;
+  --mono:'Space Mono',monospace;--sans:'Space Grotesk',sans-serif;
+  --r:300px; /* radio del tablero */
+}
+html,body{
+  width:100%;height:100vh;
+  background:radial-gradient(ellipse at center,#111 0%,#000 100%);
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;font-family:var(--mono);
+}
+
+/* ══ WATCH CONTAINER ══ */
+.watch{
+  position:relative;
+  width:calc(var(--r)*2);
+  height:calc(var(--r)*2);
+}
+
+/* ── Outer ring glow ── */
+.ring-outer{
+  position:absolute;inset:0;border-radius:50%;
+  background:conic-gradient(
+    from 180deg,
+    #ff4d00 0deg, #ff6b35 30deg, #333 60deg,
+    #222 240deg, #ff4d00 300deg, #ff6b35 330deg, #ff4d00 360deg
+  );
+  padding:4px;
+  box-shadow:0 0 60px rgba(255,77,0,.3),0 0 120px rgba(255,77,0,.1),inset 0 0 0 1px rgba(255,77,0,.2);
+}
+.ring-inner-bg{
+  width:100%;height:100%;border-radius:50%;
+  background:var(--bg);
+  position:relative;overflow:hidden;
+}
+
+/* ── Bezel ticks ── */
+.ticks{position:absolute;inset:0;border-radius:50%}
+.tick{
+  position:absolute;top:0;left:50%;
+  width:2px;transform-origin:0 var(--r);
+  transform:translateX(-50%) rotate(var(--deg));
+}
+.tick-line{
+  background:var(--dim);margin:0 auto;
+}
+.tick-major .tick-line{height:14px;width:2px;background:#444}
+.tick-minor .tick-line{height:7px;width:1px;background:#2a2a2a}
+
+/* ── MAP AREA (center circle) ── */
+.map-area{
+  position:absolute;
+  top:50%;left:50%;
+  width:340px;height:340px;
+  transform:translate(-50%,-50%);
+  border-radius:50%;
+  overflow:hidden;
+  border:2px solid #1a1a1a;
+  box-shadow:0 0 0 1px rgba(255,77,0,.1);
+  background:#0a0a0a;
+}
+.map-canvas{
+  width:100%;height:100%;
+  position:relative;overflow:hidden;
+}
+/* Fake map tiles */
+.map-bg{
+  position:absolute;inset:0;
+  background:
+    linear-gradient(rgba(20,25,20,.95),rgba(20,25,20,.95)),
+    repeating-linear-gradient(0deg,transparent,transparent 39px,rgba(255,255,255,.015) 40px),
+    repeating-linear-gradient(90deg,transparent,transparent 39px,rgba(255,255,255,.015) 40px);
+}
+/* Roads */
+.road{position:absolute;background:rgba(60,70,50,.8);border-radius:2px}
+.road-label{
+  position:absolute;font-size:8px;color:rgba(180,200,160,.5);
+  font-family:var(--sans);letter-spacing:.05em;white-space:nowrap;
+}
+/* Route line */
+.route-line{
+  position:absolute;
+  border:none;
+  background:none;
+}
+/* Position dot */
+.pos-dot{
+  position:absolute;
+  width:16px;height:16px;
+  border-radius:50%;
+  background:var(--blue);
+  border:3px solid var(--white);
+  box-shadow:0 0 0 6px rgba(41,182,246,.2),0 0 15px rgba(41,182,246,.5);
+  top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  z-index:10;
+}
+/* Heading arrow */
+.heading-arrow{
+  position:absolute;
+  top:50%;left:50%;
+  width:0;height:0;
+  z-index:11;
+  transform-origin:center center;
+  transform:translate(-50%,-50%) rotate(var(--hdg,45deg));
+}
+/* Waypoints */
+.waypoint{
+  position:absolute;
+  width:10px;height:10px;
+  border-radius:50%;
+  background:var(--orange);
+  border:2px solid rgba(255,100,0,.4);
+  box-shadow:0 0 8px var(--orange);
+  z-index:9;
+}
+.waypoint::after{
+  content:attr(data-label);
+  position:absolute;top:-18px;left:50%;
+  transform:translateX(-50%);
+  font-size:7px;color:var(--orange);
+  white-space:nowrap;font-family:var(--mono);
+}
+/* Map overlay info */
+.map-overlay-top{
+  position:absolute;top:12px;left:0;right:0;
+  display:flex;justify-content:center;
+  z-index:20;pointer-events:none;
+}
+.map-pill{
+  background:rgba(5,5,5,.85);
+  border:1px solid rgba(255,77,0,.2);
+  border-radius:20px;padding:3px 12px;
+  font-family:var(--mono);font-size:10px;
+  color:var(--white);display:flex;gap:8px;align-items:center;
+}
+.map-pill .dot{width:5px;height:5px;border-radius:50%;background:var(--green);box-shadow:0 0 4px var(--green)}
+.map-overlay-bot{
+  position:absolute;bottom:12px;left:0;right:0;
+  display:flex;justify-content:center;z-index:20;
+}
+/* Compass */
+.compass{
+  position:absolute;top:16px;right:16px;
+  width:36px;height:36px;z-index:20;
+}
+.compass-ring{
+  width:100%;height:100%;border-radius:50%;
+  border:1.5px solid rgba(255,77,0,.3);
+  background:rgba(5,5,5,.8);
+  display:flex;align-items:center;justify-content:center;
+  position:relative;
+}
+.compass-n{
+  position:absolute;top:2px;
+  font-family:var(--mono);font-size:8px;font-weight:700;
+  color:var(--red);
+}
+.compass-needle{
+  width:2px;height:20px;
+  background:linear-gradient(var(--red) 50%,#555 50%);
+  border-radius:1px;
+  transform:rotate(var(--hdg,45deg));
+  transition:transform .5s ease;
+}
+
+/* ══ GAUGE SEGMENTS (around the circle) ══ */
+/* Each segment is positioned at specific angles */
+.seg{
+  position:absolute;
+  display:flex;flex-direction:column;
+  align-items:center;
+}
+
+/* ── GEAR (top-left, 315deg) ── */
+.seg-gear{
+  top:28px;left:58px;
+  align-items:center;
+}
+.gear-num{
+  font-family:var(--mono);font-size:52px;font-weight:700;
+  color:var(--orange);line-height:1;
+  text-shadow:0 0 20px rgba(255,77,0,.4);
+}
+.gear-pips{display:flex;gap:3px;margin-top:2px}
+.pip{width:12px;height:2px;border-radius:1px;background:var(--dim)}
+.pip.on{background:var(--orange)}
+.seg-lbl{font-family:var(--mono);font-size:7px;color:var(--mid);letter-spacing:.12em;text-transform:uppercase;margin-bottom:3px}
+
+/* ── TEMP (top-right, 45deg) ── */
+.seg-temp{top:28px;right:58px;align-items:center}
+.temp-val{font-family:var(--mono);font-size:36px;font-weight:700;line-height:1}
+.tok{color:var(--green)}.twrn{color:var(--yellow)}.tcrit{color:var(--red)}
+.temp-status{font-family:var(--mono);font-size:8px;margin-top:3px}
+
+/* ── WEATHER (top-center) ── */
+.seg-weather{
+  top:8px;left:50%;transform:translateX(-50%);
+  align-items:center;flex-direction:row;gap:6px;
+}
+.weather-icon{font-size:20px}
+.weather-info{display:flex;flex-direction:column;align-items:flex-start}
+.weather-temp{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--white)}
+.weather-desc{font-family:var(--mono);font-size:7px;color:var(--mid)}
+
+/* ── FUEL (left, 270deg) ── */
+.seg-fuel{
+  top:50%;left:20px;transform:translateY(-50%);
+  align-items:center;
+}
+.arc-wrap{position:relative;width:64px;height:64px}
+.arc-wrap svg{transform:rotate(-90deg)}
+.arc-txt{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.arc-val{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--white)}
+.arc-sub{font-family:var(--mono);font-size:7px;color:var(--mid)}
+
+/* ── TIRES (right, 90deg) ── */
+.seg-tires{
+  top:50%;right:14px;transform:translateY(-50%);
+  align-items:center;gap:6px;
+}
+.tire-row{display:flex;flex-direction:column;align-items:center;gap:2px;width:70px}
+.tire-name{font-family:var(--mono);font-size:7px;color:var(--mid);letter-spacing:.1em}
+.tire-val{font-family:var(--mono);font-size:18px;font-weight:700}
+.tire-bar{width:60px;height:3px;background:var(--dim);border-radius:2px;overflow:hidden}
+.tire-fill{height:100%;border-radius:2px;transition:width .4s}
+.tire-tmp{font-family:var(--mono);font-size:7px;color:var(--mid)}
+.tire-sep{width:50px;height:1px;background:var(--dim)}
+
+/* ── BATTERIES (bottom-left) ── */
+.seg-batt{bottom:52px;left:52px;align-items:center}
+.batt-stack{display:flex;flex-direction:column;gap:5px}
+.batt-row{display:flex;align-items:center;gap:5px}
+.batt-ico{position:relative;width:26px;height:12px;border:1.5px solid #444;border-radius:2px}
+.batt-ico::after{content:'';position:absolute;right:-4px;top:3px;width:2px;height:5px;background:#444;border-radius:0 2px 2px 0}
+.batt-fill-el{position:absolute;left:1px;top:1px;bottom:1px;border-radius:1px;transition:width .5s}
+.batt-pct{font-family:var(--mono);font-size:11px;font-weight:700}
+.batt-lbl{font-family:var(--mono);font-size:7px;color:var(--mid)}
+
+/* ── SCORE (bottom-right) ── */
+.seg-score{bottom:52px;right:52px;align-items:center}
+
+/* ── KM ROUTE (bottom-center) ── */
+.seg-km{
+  bottom:14px;left:50%;transform:translateX(-50%);
+  align-items:center;flex-direction:row;gap:8px;
+}
+.km-val{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--blue)}
+.km-info{display:flex;flex-direction:column}
+.km-main{font-family:var(--mono);font-size:7px;color:var(--mid);letter-spacing:.1em}
+
+/* ── DIRECTION badge ── */
+.seg-dir{
+  top:50%;left:50%;
+  transform:translate(-50%,calc(-50% + 185px));
+  align-items:center;
+}
+.dir-badge{
+  background:rgba(5,5,5,.9);
+  border:1px solid rgba(255,77,0,.25);
+  border-radius:4px;padding:3px 10px;
+  font-family:var(--mono);font-size:9px;
+  color:var(--white);letter-spacing:.08em;
+  display:flex;align-items:center;gap:6px;
+}
+.dir-arrow{color:var(--orange);font-size:11px}
+
+/* ── CENTER dot overlay for map ── */
+.map-attr{
+  position:absolute;bottom:4px;right:8px;
+  font-family:var(--sans);font-size:6px;color:rgba(255,255,255,.2);
+  z-index:21;
+}
+
+/* animated route path on SVG */
+.route-svg{position:absolute;inset:0;z-index:5;pointer-events:none}
+
+/* ── ALERT arc (bottom) ── */
+.alert-arc{
+  position:absolute;bottom:0;left:50%;transform:translateX(-50%);
+  width:340px;text-align:center;
+  font-family:var(--mono);font-size:8px;
+  padding-bottom:6px;white-space:nowrap;overflow:hidden;
+}
+.alert-arc.ok{color:rgba(0,200,83,.5)}
+.alert-arc.warn{color:var(--yellow)}
+
+/* Outer label ring */
+.outer-label{
+  position:absolute;
+  font-family:var(--mono);font-size:7px;
+  color:rgba(255,77,0,.3);letter-spacing:.1em;
+  text-transform:uppercase;
+}
+.ol-top{top:6px;left:50%;transform:translateX(-50%)}
+.ol-right{right:2px;top:50%;transform:translateY(-50%) rotate(90deg)}
+.ol-bottom{bottom:6px;left:50%;transform:translateX(-50%)}
+.ol-left{left:2px;top:50%;transform:translateY(-50%) rotate(-90deg)}
+</style>
+</head>
+<body>
+
+<div class="watch">
+  <div class="ring-outer">
+    <div class="ring-inner-bg">
+
+      <!-- Ticks around bezel -->
+      <div class="ticks" id="ticks"></div>
+
+      <!-- Outer labels -->
+      <div class="outer-label ol-top">FURIOSA</div>
+      <div class="outer-label ol-right">MOTO</div>
+      <div class="outer-label ol-bottom">furiosa_01</div>
+      <div class="outer-label ol-left">v1.0</div>
+
+      <!-- ══ MAP CENTER ══ -->
+      <div class="map-area">
+        <div class="map-canvas">
+          <div class="map-bg"></div>
+
+          <!-- SVG route + roads -->
+          <svg class="route-svg" viewBox="0 0 340 340" xmlns="http://www.w3.org/2000/svg">
+            <!-- Grid roads -->
+            <line x1="0" y1="120" x2="340" y2="130" stroke="rgba(60,70,50,.6)" stroke-width="4"/>
+            <line x1="0" y1="200" x2="340" y2="195" stroke="rgba(60,70,50,.6)" stroke-width="4"/>
+            <line x1="90"  y1="0" x2="85"  y2="340" stroke="rgba(60,70,50,.6)" stroke-width="3"/>
+            <line x1="200" y1="0" x2="205" y2="340" stroke="rgba(60,70,50,.6)" stroke-width="3"/>
+            <line x1="0" y1="60" x2="340" y2="70" stroke="rgba(50,60,40,.4)" stroke-width="2"/>
+            <line x1="150" y1="0" x2="148" y2="340" stroke="rgba(50,60,40,.4)" stroke-width="2"/>
+            <!-- Diagonal road -->
+            <line x1="0" y1="280" x2="200" y2="80" stroke="rgba(70,80,55,.5)" stroke-width="5"/>
+
+            <!-- Route path (driven) -->
+            <path d="M 60 260 Q 100 240 130 200 Q 160 165 170 170" 
+              stroke="rgba(41,182,246,.8)" stroke-width="4" fill="none" stroke-linecap="round"
+              stroke-dasharray="200" stroke-dashoffset="200">
+              <animate attributeName="stroke-dashoffset" from="200" to="0" dur="3s" fill="freeze"/>
+            </path>
+            <!-- Route ahead (planned) -->
+            <path d="M 170 170 Q 185 155 210 140 Q 240 120 270 100"
+              stroke="rgba(41,182,246,.35)" stroke-width="3" fill="none" stroke-linecap="round"
+              stroke-dasharray="6 5"/>
+
+            <!-- Road labels -->
+            <text x="30" y="112" font-family="Space Mono" font-size="7" fill="rgba(180,200,160,.4)">Av. Principal</text>
+            <text x="30" y="192" font-family="Space Mono" font-size="7" fill="rgba(180,200,160,.4)">Jr. Los Osos</text>
+            <text x="95" y="55" font-family="Space Mono" font-size="7" fill="rgba(180,200,160,.4)" transform="rotate(90,95,55)">Calle 9</text>
+          </svg>
+
+          <!-- Waypoints -->
+          <div class="waypoint" style="top:32%;left:25%" data-label="taller"></div>
+          <div class="waypoint" style="top:22%;left:68%;background:var(--yellow);box-shadow:0 0 8px var(--yellow)" data-label="gasolinera"></div>
+
+          <!-- Position dot -->
+          <div class="pos-dot"></div>
+
+          <!-- Compass -->
+          <div class="compass">
+            <div class="compass-ring">
+              <div class="compass-n">N</div>
+              <div class="compass-needle" id="c-needle"></div>
+            </div>
+          </div>
+
+          <!-- Top pill -->
+          <div class="map-overlay-top">
+            <div class="map-pill">
+              <div class="dot"></div>
+              <span id="map-pill-txt">GPS · 4 sats · ±3m</span>
+            </div>
+          </div>
+
+          <div class="map-attr">© Furiosa Maps</div>
+        </div>
+      </div>
+
+      <!-- ══ SEGMENTS ══ -->
+
+      <!-- GEAR top-left -->
+      <div class="seg seg-gear">
+        <div class="seg-lbl">Marcha</div>
+        <div class="gear-num" id="gear">3</div>
+        <div class="gear-pips">
+          <div class="pip on" id="p1"></div><div class="pip on" id="p2"></div>
+          <div class="pip on" id="p3"></div><div class="pip" id="p4"></div>
+          <div class="pip" id="p5"></div><div class="pip" id="p6"></div>
+        </div>
+      </div>
+
+      <!-- WEATHER top-center -->
+      <div class="seg seg-weather">
+        <div class="weather-icon" id="w-icon">⛅</div>
+        <div class="weather-info">
+          <div class="weather-temp" id="w-temp">24°C</div>
+          <div class="weather-desc" id="w-desc">Parcialmente nublado</div>
+        </div>
+      </div>
+
+      <!-- TEMP top-right -->
+      <div class="seg seg-temp">
+        <div class="seg-lbl">Motor</div>
+        <div class="temp-val twrn" id="temp">89°</div>
+        <div class="temp-status" id="tstat" style="color:var(--yellow)">● Atención</div>
+      </div>
+
+      <!-- FUEL left -->
+      <div class="seg seg-fuel">
+        <div class="seg-lbl">Fuel</div>
+        <div class="arc-wrap">
+          <svg width="64" height="64" viewBox="0 0 64 64">
+            <circle cx="32" cy="32" r="26" fill="none" stroke="#1a1a1a" stroke-width="5"/>
+            <circle cx="32" cy="32" r="26" fill="none" stroke="var(--orange)" stroke-width="5"
+              id="fcircle" stroke-dasharray="163.4" stroke-dashoffset="73.5" stroke-linecap="round"/>
+          </svg>
+          <div class="arc-txt">
+            <div class="arc-val" id="fpct">55%</div>
+            <div class="arc-sub" id="fkm">~124km</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TIRES right -->
+      <div class="seg seg-tires">
+        <div class="seg-lbl">Llantas</div>
+        <div class="tire-row">
+          <div class="tire-name">DEL</div>
+          <div class="tire-val" id="tf-psi" style="color:var(--green)">32.5</div>
+          <div class="tire-bar"><div class="tire-fill" id="tf-bar" style="width:81%;background:var(--green)"></div></div>
+          <div class="tire-tmp" id="tf-tmp">38°C</div>
+        </div>
+        <div class="tire-sep"></div>
+        <div class="tire-row">
+          <div class="tire-name">TRA</div>
+          <div class="tire-val" id="tr-psi" style="color:var(--green)">36.0</div>
+          <div class="tire-bar"><div class="tire-fill" id="tr-bar" style="width:90%;background:var(--green)"></div></div>
+          <div class="tire-tmp" id="tr-tmp">41°C</div>
+        </div>
+      </div>
+
+      <!-- BATTERIES bottom-left -->
+      <div class="seg seg-batt">
+        <div class="seg-lbl">Batería</div>
+        <div class="batt-stack">
+          <div class="batt-row">
+            <div class="batt-ico"><div class="batt-fill-el" id="bm-f" style="width:79%;background:var(--green)"></div></div>
+            <div><div class="batt-pct" id="bm">79%</div><div class="batt-lbl">moto</div></div>
+          </div>
+          <div class="batt-row">
+            <div class="batt-ico"><div class="batt-fill-el" id="bc-f" style="width:12%;background:var(--red)"></div></div>
+            <div><div class="batt-pct" id="bc" style="color:var(--red)">12%</div><div class="batt-lbl">cel</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCORE bottom-right -->
+      <div class="seg seg-score">
+        <div class="seg-lbl">Eficiencia</div>
+        <div class="arc-wrap">
+          <svg width="64" height="64" viewBox="0 0 64 64">
+            <circle cx="32" cy="32" r="26" fill="none" stroke="#1a1a1a" stroke-width="5"/>
+            <circle cx="32" cy="32" r="26" fill="none" stroke="var(--green)" stroke-width="5"
+              id="scircle" stroke-dasharray="163.4" stroke-dashoffset="49.0" stroke-linecap="round"/>
+          </svg>
+          <div class="arc-txt">
+            <div class="arc-val" id="snum" style="color:var(--green)">82</div>
+            <div class="arc-sub">/100</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- KM ROUTE bottom-center -->
+      <div class="seg seg-km">
+        <div class="km-val" id="km">87.4</div>
+        <div class="km-info">
+          <div class="km-main">KM RUTA</div>
+        </div>
+      </div>
+
+      <!-- DIRECTION bottom -->
+      <div class="seg seg-dir">
+        <div class="dir-badge">
+          <span class="dir-arrow" id="dir-arrow">↗</span>
+          <span id="dir-txt">NE · 272°</span>
+        </div>
+      </div>
+
+      <!-- ALERT -->
+      <div class="alert-arc ok" id="atick">● OK · Aceite: 312km · Conducción: 74/100</div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Generate ticks ──────────────────────────────────────────
+const ticksEl = document.getElementById('ticks');
+const R = 300;
+for (let i = 0; i < 60; i++) {
+  const deg = i * 6;
+  const major = i % 5 === 0;
+  const tick = document.createElement('div');
+  tick.className = 'tick ' + (major ? 'tick-major' : 'tick-minor');
+  tick.style.setProperty('--deg', deg + 'deg');
+  tick.style.setProperty('--r', R + 'px');
+  const line = document.createElement('div');
+  line.className = 'tick-line';
+  tick.appendChild(line);
+  ticksEl.appendChild(tick);
+}
+
+// ── State ───────────────────────────────────────────────────
+let s = {
+  gear:3, temp:89, fuel:55, km:87.4,
+  bm:79, bc:12,
+  tf:32.5, tr:36.0, tft:38, trt:41,
+  score:82, hdg:272,
+  weather:{icon:'⛅',temp:24,desc:'Parcialmente nublado'},
+};
+
+const DIRS = [
+  [0,'N','↑'],[23,'NNE','↗'],[45,'NE','↗'],[68,'ENE','→'],
+  [90,'E','→'],[113,'ESE','↘'],[135,'SE','↘'],[158,'SSE','↓'],
+  [180,'S','↓'],[203,'SSO','↙'],[225,'SO','↙'],[248,'OSO','←'],
+  [270,'O','←'],[293,'ONO','↖'],[315,'NO','↖'],[338,'NNO','↑'],
+];
+function getDir(hdg) {
+  const idx = Math.round(hdg / 22.5) % 16;
+  return DIRS[idx];
+}
+
+function cl(v,a,b){return Math.min(Math.max(v,a),b)}
+
+function update() {
+  s.temp  = cl(s.temp  + (Math.random()-.5)*.7, 75, 105);
+  s.km   += 0.008;
+  s.fuel  = cl(s.fuel  - .0006, 0, 100);
+  s.tft   = cl(s.tft   + (Math.random()-.5)*.06, 30, 80);
+  s.trt   = cl(s.trt   + (Math.random()-.5)*.06, 30, 80);
+  s.hdg   = cl(s.hdg   + (Math.random()-.5)*2, 0, 359);
+
+  // Gear from simulation
+  const spd = 45 + Math.sin(Date.now()/8000)*25;
+  const gs=[[0,10,1],[10,25,2],[25,45,3],[45,70,4],[70,100,5],[100,999,6]];
+  for(const[a,b,g] of gs){if(spd>=a&&spd<b){s.gear=g;break}}
+
+  // ── GEAR
+  document.getElementById('gear').textContent = s.gear;
+  for(let i=1;i<=6;i++)
+    document.getElementById('p'+i).className='pip'+(i<=s.gear?' on':'');
+
+  // ── TEMP
+  const te=document.getElementById('temp'), ts=document.getElementById('tstat');
+  te.textContent = Math.round(s.temp)+'°';
+  if(s.temp>=95){te.className='temp-val tcrit';ts.textContent='● Crítico';ts.style.color='var(--red)'}
+  else if(s.temp>=88){te.className='temp-val twrn';ts.textContent='● Atención';ts.style.color='var(--yellow)'}
+  else{te.className='temp-val tok';ts.textContent='● Normal';ts.style.color='var(--green)'}
+
+  // ── FUEL
+  const fo = 163.4*(1-s.fuel/100);
+  const fc = document.getElementById('fcircle');
+  fc.setAttribute('stroke-dashoffset', fo.toFixed(1));
+  fc.setAttribute('stroke', s.fuel<20?'var(--red)':s.fuel<35?'var(--yellow)':'var(--orange)');
+  document.getElementById('fpct').textContent = Math.round(s.fuel)+'%';
+  document.getElementById('fkm').textContent  = '~'+Math.round(s.fuel*2.3)+'km';
+
+  // ── BATTERIES
+  const bmf=document.getElementById('bm-f');
+  bmf.style.width=s.bm+'%';
+  bmf.style.background=s.bm<20?'var(--red)':s.bm<40?'var(--yellow)':'var(--green)';
+  document.getElementById('bm').textContent=Math.round(s.bm)+'%';
+  const bcf=document.getElementById('bc-f');
+  bcf.style.width=s.bc+'%';
+  bcf.style.background=s.bc<20?'var(--red)':'var(--yellow)';
+  const bce=document.getElementById('bc');
+  bce.textContent=Math.round(s.bc)+'%';
+  bce.style.color=s.bc<20?'var(--red)':'var(--white)';
+
+  // ── TIRES
+  const tfE=document.getElementById('tf-psi');
+  tfE.textContent=s.tf.toFixed(1);
+  tfE.style.color=s.tf<26?'var(--red)':s.tf<29?'var(--yellow)':'var(--green)';
+  document.getElementById('tf-bar').style.width=Math.min(s.tf/40*100,100)+'%';
+  document.getElementById('tf-bar').style.background=s.tf<26?'var(--red)':s.tf<29?'var(--yellow)':'var(--green)';
+  document.getElementById('tf-tmp').textContent=Math.round(s.tft)+'°C';
+  const trE=document.getElementById('tr-psi');
+  trE.textContent=s.tr.toFixed(1);
+  trE.style.color=s.tr<28?'var(--red)':s.tr<32?'var(--yellow)':'var(--green)';
+  document.getElementById('tr-bar').style.width=Math.min(s.tr/42*100,100)+'%';
+  document.getElementById('tr-bar').style.background=s.tr<28?'var(--red)':s.tr<32?'var(--yellow)':'var(--green)';
+  document.getElementById('tr-tmp').textContent=Math.round(s.trt)+'°C';
+
+  // ── SCORE
+  document.getElementById('snum').textContent=s.score;
+  document.getElementById('scircle').setAttribute('stroke-dashoffset',(163.4*(1-s.score/100)).toFixed(1));
+
+  // ── KM
+  document.getElementById('km').textContent=s.km.toFixed(1);
+
+  // ── DIRECTION + COMPASS
+  const [,dname,darrow] = getDir(Math.round(s.hdg));
+  document.getElementById('dir-txt').textContent = dname+' · '+Math.round(s.hdg)+'°';
+  document.getElementById('dir-arrow').textContent = darrow;
+  document.getElementById('c-needle').style.transform = 'rotate('+s.hdg+'deg)';
+
+  // ── WEATHER (static for demo, would come from API)
+  document.getElementById('w-icon').textContent = s.weather.icon;
+  document.getElementById('w-temp').textContent = s.weather.temp+'°C';
+  document.getElementById('w-desc').textContent = s.weather.desc;
+
+  // ── MAP pill
+  document.getElementById('map-pill-txt').textContent =
+    'GPS · '+Math.round(s.hdg)+'° · ±3m';
+
+  // ── ALERT
+  const at=document.getElementById('atick');
+  if(s.temp>=95){at.className='alert-arc warn';at.textContent='⚠ MOTOR '+Math.round(s.temp)+'°C — Para y enfría el motor'}
+  else if(s.bc<=12){at.className='alert-arc warn';at.textContent='⚠ Batería cel '+Math.round(s.bc)+'% — Conecta el cargador'}
+  else{at.className='alert-arc ok';at.textContent='● OK · Aceite: 312km · Conducción: 74/100 · '+s.km.toFixed(1)+'km ruta'}
+}
+
+setInterval(update, 700);
+update();
+</script>
+</body>
+</html>
