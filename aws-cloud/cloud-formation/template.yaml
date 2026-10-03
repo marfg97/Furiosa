@@ -9,8 +9,14 @@ Parameters:
 
   S3BucketName:
     Type: String
-    Default: furiosa-data
-    Description: Nombre del bucket S3 para raw/stage/modelos. Debe ser globalmente único.
+    Default: furiosa-data-0454
+    Description: Nombre del bucket S3 para raw/stage/modelos. 
+
+  CreateSageMakerResources:
+    Type: String
+    AllowedValues: [true, false]
+    Default: false
+    Description: 'Si se establece en true, la plantilla creará los modelos y endpoints de SageMaker. Usar true sólo cuando los artefactos de modelo estén en S3.'
 
   DeviceThingName:
     Type: String
@@ -21,6 +27,9 @@ Parameters:
     Type: String
     Default: admin@example.com
     Description: Email para recibir notificaciones por SNS.
+
+Conditions:
+  CreateSageMakerResourcesCondition: !Equals [ !Ref CreateSageMakerResources, 'true' ]
 
 Resources:
   # --- CAPA DE ALMACENAMIENTO (S3 y DynamoDB) ---
@@ -175,6 +184,93 @@ Resources:
         - Endpoint: !Ref AlertEmail
           Protocol: email
 
+  FuriosaVpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.20.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  FuriosaInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  FuriosaVpcGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref FuriosaVpc
+      InternetGatewayId: !Ref FuriosaInternetGateway
+
+  FuriosaPublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref FuriosaVpc
+      CidrBlock: 10.20.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-public-a'
+
+  FuriosaPublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref FuriosaVpc
+      CidrBlock: 10.20.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-public-b'
+
+  FuriosaRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref FuriosaVpc
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  FuriosaRouteToInternet:
+    Type: AWS::EC2::Route
+    DependsOn: FuriosaVpcGatewayAttachment
+    Properties:
+      RouteTableId: !Ref FuriosaRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref FuriosaInternetGateway
+
+  FuriosaPublicSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref FuriosaPublicSubnetA
+      RouteTableId: !Ref FuriosaRouteTable
+
+  FuriosaPublicSubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref FuriosaPublicSubnetB
+      RouteTableId: !Ref FuriosaRouteTable
+
+  FuriosaSageMakerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for SageMaker endpoints
+      VpcId: !Ref FuriosaVpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
   IoTErrorLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -278,19 +374,20 @@ Resources:
               - Effect: Allow
                 Action:
                   - lambda:InvokeFunction
-                Resource:
-                  - !GetAtt L1RealtimeMonitorFunction.Arn
-                  - !GetAtt L2SessionDetectorFunction.Arn
-                  - !GetAtt L5AlertDispatcherFunction.Arn
+                Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:*'
               - Effect: Allow
                 Action:
                   - sagemaker:InvokeEndpoint
                 Resource: '*'
+  # --- CAPA DE COMPUTO (Lambdas y permisos) ---
 
+# Lambda: L1 - Monitor en tiempo real (código en aws-cloud/lambda/L1_realtime_monitor.py)
   L1RealtimeMonitorFunction:
     Type: AWS::Lambda::Function
+    Metadata:
+      SourceFile: aws-cloud/lambda/L1_realtime_monitor.py
     Properties:
-      FunctionName: !Sub '${ProjectName}-realtime-monitor'
+      FunctionName: L1_realtime_monitor
       Role: !GetAtt LambdaExecutionRole.Arn
       Runtime: python3.12
       Handler: index.lambda_handler
@@ -303,76 +400,15 @@ Resources:
           ALERT_DISPATCHER_FUNCTION: !Ref L5AlertDispatcherFunction
       Code:
         ZipFile: |
-          import json
-          import os
-          import time
-          import boto3
-
-          dynamodb = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
-          lambda_client = boto3.client('lambda', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
-          alerts_table = dynamodb.Table(os.environ['ALERTS_TABLE'])
-
-          THRESHOLDS = {
-              'engine_temp_c': {'warn': 90, 'critical': 95},
-              'rpm': {'warn': 7000, 'critical': 8000},
-              'voltage_bike': {'warn': 12.0, 'critical': 11.5, 'mode': 'below'},
-              'battery_cel_percent': {'warn': 20, 'critical': 10, 'mode': 'below'},
-              'tire_pressure_front_psi': {'warn': 28, 'critical': 25, 'mode': 'below'},
-              'tire_pressure_rear_psi': {'warn': 30, 'critical': 27, 'mode': 'below'},
-          }
-
-          def evaluate_metric(metric, value):
-              if value is None:
-                  return None
-              cfg = THRESHOLDS.get(metric)
-              if not cfg:
-                  return None
-              mode = cfg.get('mode', 'above')
-              if mode == 'above':
-                  if value >= cfg.get('critical'):
-                      return 'critical'
-                  if value >= cfg.get('warn'):
-                      return 'warn'
-              else:
-                  if value <= cfg.get('critical'):
-                      return 'critical'
-                  if value <= cfg.get('warn'):
-                      return 'warn'
-              return None
-
           def lambda_handler(event, context):
-              device_id = event.get('device_id', 'furiosa_01')
-              alerts = []
-              for metric in THRESHOLDS:
-                  level = evaluate_metric(metric, event.get(metric))
-                  if level:
-                      msg = {
-                          'metric': metric,
-                          'value': event.get(metric),
-                          'level': level,
-                          'message': f'{metric} fuera de rango: {event.get(metric)}'
-                      }
-                      alerts.append(msg)
-                      alerts_table.put_item(Item={
-                          'device_id': device_id,
-                          'timestamp': str(int(time.time())),
-                          'metric': metric,
-                          'value': str(event.get(metric)),
-                          'level': level,
-                          'message': msg['message'],
-                          'created_at': str(int(time.time()))
-                      })
-                      lambda_client.invoke(
-                          FunctionName=os.environ['ALERT_DISPATCHER_FUNCTION'],
-                          InvocationType='Event',
-                          Payload=json.dumps({'device_id': device_id, 'alert': msg, 'mode': 'riding'}).encode('utf-8')
-                      )
-              return {'statusCode': 200, 'alerts': alerts}
+              return {"statusCode": 200, "body": "placeholder - pendiente despliegue CI/CD"}
 
   L2SessionDetectorFunction:
     Type: AWS::Lambda::Function
+    Metadata:
+      SourceFile: aws-cloud/lambda/L2_session_detector.py
     Properties:
-      FunctionName: !Sub '${ProjectName}-session-detector'
+      FunctionName: L2_session_detector
       Role: !GetAtt LambdaExecutionRole.Arn
       Runtime: python3.12
       Handler: index.lambda_handler
@@ -382,79 +418,17 @@ Resources:
         Variables:
           SESSION_STATE_TABLE: !Ref FuriosaSessionStateTable
           SESSIONS_TABLE: !Ref FuriosaSessionsTable
-          GLUE_JOB_NAME: G1-raw-to-stage
       Code:
         ZipFile: |
-          import os
-          import time
-          from datetime import datetime
-          import boto3
-
-          dynamodb = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
-          glue = boto3.client('glue', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
-          session_state_table = dynamodb.Table(os.environ['SESSION_STATE_TABLE'])
-          sessions_table = dynamodb.Table(os.environ['SESSIONS_TABLE'])
-
           def lambda_handler(event, context):
-              device_id = event.get('device_id', 'furiosa_01')
-              engine_on = bool(event.get('engine_on', False))
-              now = int(time.time())
-
-              item = session_state_table.get_item(Key={'device_id': device_id}).get('Item')
-              if not item or item.get('active') != 'true':
-                  if engine_on:
-                      session_id = f"{device_id}_{datetime.utcnow().strftime('%Y%m%d')}_{int(time.time()) % 10000}"
-                      session_state_table.put_item(Item={
-                          'device_id': device_id,
-                          'active': 'true',
-                          'session_id': session_id,
-                          'session_start_ts': str(now),
-                          'last_seen_ts': str(now),
-                          'distance_km_accum': '0',
-                          'last_updated': str(now)
-                      })
-                  return {'statusCode': 200, 'action': 'seeded'}
-
-              last_seen = int(item.get('last_seen_ts', now))
-              if not engine_on or (now - last_seen) > 120:
-                  session_id = item['session_id']
-                  sessions_table.put_item(Item={
-                      'session_id': session_id,
-                      'device_id': device_id,
-                      'timestamp': str(now),
-                      'status': 'closed',
-                      'session_start_ts': item['session_start_ts'],
-                      'session_end_ts': str(now),
-                      'distance_km': item.get('distance_km_accum', '0'),
-                      'glue_triggered': 'false'
-                  })
-                  try:
-                      glue.start_job_run(
-                          JobName=os.environ['GLUE_JOB_NAME'],
-                          Arguments={
-                              '--session_id': session_id,
-                              '--device_id': device_id,
-                              '--start_ts': item['session_start_ts'],
-                              '--end_ts': str(now),
-                              '--bucket': 'furiosa-data'
-                          }
-                      )
-                  except Exception as exc:
-                      print(f'Glue trigger failure: {exc}')
-                  session_state_table.put_item(Item={'device_id': device_id, 'active': 'false', 'session_id': 'none'})
-                  return {'statusCode': 200, 'action': 'session_closed'}
-
-              session_state_table.update_item(
-                  Key={'device_id': device_id},
-                  UpdateExpression='SET last_seen_ts = :ts, last_updated = :ts',
-                  ExpressionAttributeValues={':ts': str(now)}
-              )
-              return {'statusCode': 200, 'action': 'session_updated'}
+              return {"statusCode": 200, "body": "placeholder - pendiente despliegue CI/CD"}
 
   L3MaintenancePredictFunction:
     Type: AWS::Lambda::Function
+    Metadata:
+      SourceFile: aws-cloud/lambda/L3_maintenance_predict.py
     Properties:
-      FunctionName: !Sub '${ProjectName}-maintenance-predict'
+      FunctionName: L3_maintenance_predict
       Role: !GetAtt LambdaExecutionRole.Arn
       Runtime: python3.12
       Handler: index.lambda_handler
@@ -467,59 +441,35 @@ Resources:
           ALERTS_TOPIC_ARN: !Ref FuriosaAlertsTopic
       Code:
         ZipFile: |
-          import json
-          import os
-          import time
-          import boto3
-
-          dynamodb = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
-          sm = boto3.client('sagemaker-runtime', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
-          predictions_table = dynamodb.Table(os.environ['PREDICTIONS_TABLE'])
-          maintenance_table = dynamodb.Table(os.environ['MAINTENANCE_TABLE'])
-
-          ENDPOINTS = ['furiosa-maintenance-oil', 'furiosa-maintenance-brake-front']
-
           def lambda_handler(event, context):
-              session_id = event.get('session_id')
-              if not session_id:
-                  return {'statusCode': 400, 'error': 'session_id requerido'}
+              return {"statusCode": 200, "body": "placeholder - pendiente despliegue CI/CD"}
 
-              feature_vector = [
-                  float(event.get('distance_km', 0)),
-                  float(event.get('duration_min', 0)),
-                  float(event.get('speed_avg_kmh', 0)),
-                  float(event.get('rpm_avg', 0)),
-                  float(event.get('engine_temp_max_c', 0)),
-                  float(event.get('oil_temp_max_c', 0))
-              ]
-              payload = ','.join(str(v) for v in feature_vector)
-              predictions = {}
-              for endpoint in ENDPOINTS:
-                  try:
-                      response = sm.invoke_endpoint(EndpointName=endpoint, ContentType='text/csv', Body=payload)
-                      score = float(response['Body'].read().decode('utf-8').strip())
-                      predictions[endpoint] = score
-                  except Exception:
-                      predictions[endpoint] = -1
-              predictions_table.put_item(Item={
-                  'session_id': session_id,
-                  'device_id': event.get('device_id', 'furiosa_01'),
-                  'timestamp': str(int(time.time())),
-                  'predictions': json.dumps(predictions),
-                  'status': 'ready'
-              })
-              maintenance_table.put_item(Item={
-                  'device_id': event.get('device_id', 'furiosa_01'),
-                  'timestamp': str(int(time.time())),
-                  'oil_km_left': str(predictions.get(ENDPOINTS[0], -1)),
-                  'brake_front_km_left': str(predictions.get(ENDPOINTS[1], -1))
-              })
-              return {'statusCode': 200, 'session_id': session_id, 'predictions': predictions}
+  L4VoiceCommandHandlerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: L4_voice_command_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Timeout: 30
+      MemorySize: 512
+      Environment:
+        Variables:
+          ALERTS_TABLE: !Ref FuriosaAlertsTable
+          ALERTS_TOPIC_ARN: !Ref FuriosaAlertsTopic
+          SESSIONS_TABLE: !Ref FuriosaSessionsTable
+          MAINTENANCE_TABLE: !Ref FuriosaMaintenanceTable
+      Code:
+        ZipFile: |
+          def lambda_handler(event, context):
+              return {"statusCode": 200, "body": "placeholder L4"}
 
   L5AlertDispatcherFunction:
     Type: AWS::Lambda::Function
+    Metadata:
+      SourceFile: aws-cloud/lambda/L5_alert_dispatcher.py
     Properties:
-      FunctionName: !Sub '${ProjectName}-alert-dispatcher'
+      FunctionName: L5_alert_dispatcher
       Role: !GetAtt LambdaExecutionRole.Arn
       Runtime: python3.12
       Handler: index.lambda_handler
@@ -531,43 +481,8 @@ Resources:
           ALERTS_TOPIC_ARN: !Ref FuriosaAlertsTopic
       Code:
         ZipFile: |
-          import json
-          import os
-          import time
-          import boto3
-
-          sns = boto3.client('sns', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
-          dynamodb = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
-          alerts_table = dynamodb.Table(os.environ['ALERTS_TABLE'])
-
           def lambda_handler(event, context):
-              device_id = event.get('device_id', 'furiosa_01')
-              alert = event.get('alert', {})
-              mode = event.get('mode', 'riding')
-              message = alert.get('message', str(alert))
-              level = alert.get('level', 'warn')
-              metric = alert.get('metric', 'unknown')
-
-              sns.publish(
-                  TopicArn=os.environ['ALERTS_TOPIC_ARN'],
-                  Subject=f'Furiosa alert [{level.upper()}]',
-                  Message=message,
-                  MessageAttributes={
-                      'device_id': {'DataType': 'String', 'StringValue': device_id},
-                      'level': {'DataType': 'String', 'StringValue': level},
-                      'metric': {'DataType': 'String', 'StringValue': metric},
-                  }
-              )
-
-              alerts_table.put_item(Item={
-                  'device_id': device_id,
-                  'timestamp': str(int(time.time())),
-                  'metric': metric,
-                  'level': level,
-                  'message': message,
-                  'mode': mode
-              })
-              return {'statusCode': 200, 'message': message, 'mode': mode}
+              return {"statusCode": 200, "body": "placeholder - pendiente despliegue CI/CD"}
 
   L1InvokePermission:
     Type: AWS::Lambda::Permission
@@ -575,7 +490,7 @@ Resources:
       FunctionName: !Ref L1RealtimeMonitorFunction
       Action: lambda:InvokeFunction
       Principal: iot.amazonaws.com
-      SourceArn: !GetAtt FuriosaDataRule.Arn
+      SourceArn: !Sub 'arn:aws:iot:${AWS::Region}:${AWS::AccountId}:rule/*'
 
   L2InvokePermission:
     Type: AWS::Lambda::Permission
@@ -583,65 +498,269 @@ Resources:
       FunctionName: !Ref L2SessionDetectorFunction
       Action: lambda:InvokeFunction
       Principal: iot.amazonaws.com
-      SourceArn: !GetAtt FuriosaDataRule.Arn
+      SourceArn: !Sub 'arn:aws:iot:${AWS::Region}:${AWS::AccountId}:rule/*'
+      
+  L4InvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref L4VoiceCommandHandlerFunction
+      Action: lambda:InvokeFunction
+      Principal: iot.amazonaws.com
+      SourceArn: !Sub 'arn:aws:iot:${AWS::Region}:${AWS::AccountId}:rule/*'
 
-  GlueServiceRole:
+  FuriosaSageMakerExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub '${ProjectName}-glue-role'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
             Principal:
-              Service: glue.amazonaws.com
+              Service: sagemaker.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
-      Policies:
-        - PolicyName: FuriosaGlueS3AndLambda
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - s3:GetBucketLocation
-                  - s3:ListBucket
-                  - s3:GetObject
-                  - s3:PutObject
-                Resource:
-                  - !Sub '${FuriosaDataBucket.Arn}'
-                  - !Sub '${FuriosaDataBucket.Arn}/*'
-              - Effect: Allow
-                Action:
-                  - dynamodb:PutItem
-                  - dynamodb:GetItem
-                  - dynamodb:Query
-                  - dynamodb:Scan
-                Resource:
-                  - !GetAtt FuriosaTelemetryTable.Arn
-                  - !GetAtt FuriosaSessionsTable.Arn
-                  - !GetAtt FuriosaPredictionsTable.Arn
-              - Effect: Allow
-                Action:
-                  - lambda:InvokeFunction
-                Resource: !GetAtt L3MaintenancePredictFunction.Arn
-
-  GlueJobRawToStage:
-    Type: AWS::Glue::Job
-    Properties:
-      Name: G1-raw-to-stage
-      Role: !GetAtt GlueServiceRole.Arn
-      Command:
-        Name: glueetl
-        ScriptLocation: !Sub 's3://${S3BucketName}/scripts/raw_2_stage.py'
-      GlueVersion: '3.0'
-      WorkerType: G.1X
-      NumberOfWorkers: 2
-      MaxRetries: 1
-      Timeout: 120
+        - arn:aws:iam::aws:policy/AmazonSageMakerFullAccess
       Tags:
-        Project: !Ref ProjectName
+        - Key: Project
+          Value: !Ref ProjectName
+
+  FuriosaMaintenanceModelOil:
+    Condition: CreateSageMakerResourcesCondition
+    Type: AWS::SageMaker::Model
+    Properties:
+      ModelName: furiosa-maintenance-oil
+      ExecutionRoleArn: !GetAtt FuriosaSageMakerExecutionRole.Arn
+      PrimaryContainer:
+        Image: !Sub '683313688378.dkr.ecr.${AWS::Region}.amazonaws.com/sagemaker-xgboost:1-0-1'
+        ModelDataUrl: !Sub 's3://${S3BucketName}/ml/models/placeholder/oil-model.tar.gz'
+      VpcConfig:
+        Subnets:
+          - !Ref FuriosaPublicSubnetA
+          - !Ref FuriosaPublicSubnetB
+        SecurityGroupIds:
+          - !Ref FuriosaSageMakerSecurityGroup
+
+  FuriosaMaintenanceModelBrakeFront:
+    Condition: CreateSageMakerResourcesCondition
+    Type: AWS::SageMaker::Model
+    Properties:
+      ModelName: furiosa-maintenance-brake-front
+      ExecutionRoleArn: !GetAtt FuriosaSageMakerExecutionRole.Arn
+      PrimaryContainer:
+        Image: !Sub '683313688378.dkr.ecr.${AWS::Region}.amazonaws.com/sagemaker-xgboost:1-0-1'
+        ModelDataUrl: !Sub 's3://${S3BucketName}/ml/models/placeholder/brake-front-model.tar.gz'
+      VpcConfig:
+        Subnets:
+          - !Ref FuriosaPublicSubnetA
+          - !Ref FuriosaPublicSubnetB
+        SecurityGroupIds:
+          - !Ref FuriosaSageMakerSecurityGroup
+
+  FuriosaMaintenanceModelBrakeRear:
+    Condition: CreateSageMakerResourcesCondition
+    Type: AWS::SageMaker::Model
+    Properties:
+      ModelName: furiosa-maintenance-brake-rear
+      ExecutionRoleArn: !GetAtt FuriosaSageMakerExecutionRole.Arn
+      PrimaryContainer:
+        Image: !Sub '683313688378.dkr.ecr.${AWS::Region}.amazonaws.com/sagemaker-xgboost:1-0-1'
+        ModelDataUrl: !Sub 's3://${S3BucketName}/ml/models/placeholder/brake-rear-model.tar.gz'
+      VpcConfig:
+        Subnets:
+          - !Ref FuriosaPublicSubnetA
+          - !Ref FuriosaPublicSubnetB
+        SecurityGroupIds:
+          - !Ref FuriosaSageMakerSecurityGroup
+
+  FuriosaMaintenanceModelChain:
+    Condition: CreateSageMakerResourcesCondition
+    Type: AWS::SageMaker::Model
+    Properties:
+      ModelName: furiosa-maintenance-chain
+      ExecutionRoleArn: !GetAtt FuriosaSageMakerExecutionRole.Arn
+      PrimaryContainer:
+        Image: !Sub '683313688378.dkr.ecr.${AWS::Region}.amazonaws.com/sagemaker-xgboost:1-0-1'
+        ModelDataUrl: !Sub 's3://${S3BucketName}/ml/models/placeholder/chain-model.tar.gz'
+      VpcConfig:
+        Subnets:
+          - !Ref FuriosaPublicSubnetA
+          - !Ref FuriosaPublicSubnetB
+        SecurityGroupIds:
+          - !Ref FuriosaSageMakerSecurityGroup
+
+  FuriosaMaintenanceModelTireFront:
+    Condition: CreateSageMakerResourcesCondition
+    Type: AWS::SageMaker::Model
+    Properties:
+      ModelName: furiosa-maintenance-tire-front
+      ExecutionRoleArn: !GetAtt FuriosaSageMakerExecutionRole.Arn
+      PrimaryContainer:
+        Image: !Sub '683313688378.dkr.ecr.${AWS::Region}.amazonaws.com/sagemaker-xgboost:1-0-1'
+        ModelDataUrl: !Sub 's3://${S3BucketName}/ml/models/placeholder/tire-front-model.tar.gz'
+      VpcConfig:
+        Subnets:
+          - !Ref FuriosaPublicSubnetA
+          - !Ref FuriosaPublicSubnetB
+        SecurityGroupIds:
+          - !Ref FuriosaSageMakerSecurityGroup
+
+  FuriosaMaintenanceModelTireRear:
+    Condition: CreateSageMakerResourcesCondition
+    Type: AWS::SageMaker::Model
+    Properties:
+      ModelName: furiosa-maintenance-tire-rear
+      ExecutionRoleArn: !GetAtt FuriosaSageMakerExecutionRole.Arn
+      PrimaryContainer:
+        Image: !Sub '683313688378.dkr.ecr.${AWS::Region}.amazonaws.com/sagemaker-xgboost:1-0-1'
+        ModelDataUrl: !Sub 's3://${S3BucketName}/ml/models/placeholder/tire-rear-model.tar.gz'
+      VpcConfig:
+        Subnets:
+          - !Ref FuriosaPublicSubnetA
+          - !Ref FuriosaPublicSubnetB
+        SecurityGroupIds:
+          - !Ref FuriosaSageMakerSecurityGroup
+
+  FuriosaMaintenanceModelUrgency:
+    Condition: CreateSageMakerResourcesCondition
+    Type: AWS::SageMaker::Model
+    Properties:
+      ModelName: furiosa-maintenance-urgency
+      ExecutionRoleArn: !GetAtt FuriosaSageMakerExecutionRole.Arn
+      PrimaryContainer:
+        Image: !Sub '683313688378.dkr.ecr.${AWS::Region}.amazonaws.com/sagemaker-xgboost:1-0-1'
+        ModelDataUrl: !Sub 's3://${S3BucketName}/ml/models/placeholder/urgency-model.tar.gz'
+      VpcConfig:
+        Subnets:
+          - !Ref FuriosaPublicSubnetA
+          - !Ref FuriosaPublicSubnetB
+        SecurityGroupIds:
+          - !Ref FuriosaSageMakerSecurityGroup
+
+  FuriosaEndpointConfigOil:
+    Condition: CreateSageMakerResourcesCondition
+    Type: AWS::SageMaker::EndpointConfig
+    Properties:
+      ProductionVariants:
+        - InitialInstanceCount: 1
+          InitialVariantWeight: 1.0
+          InstanceType: ml.m5.large
+          ModelName: furiosa-maintenance-oil
+          VariantName: AllTraffic
+
+  FuriosaEndpointOil:
+    Condition: CreateSageMakerResourcesCondition
+    Type: AWS::SageMaker::Endpoint
+    Properties:
+      EndpointConfigName: !GetAtt FuriosaEndpointConfigOil.EndpointConfigName
+      EndpointName: furiosa-maintenance-oil
+
+  FuriosaEndpointConfigBrakeFront:
+    Condition: CreateSageMakerResourcesCondition
+    Type: AWS::SageMaker::EndpointConfig
+    Properties:
+      ProductionVariants:
+        - InitialInstanceCount: 1
+          InitialVariantWeight: 1.0
+          InstanceType: ml.m5.large
+          ModelName: furiosa-maintenance-brake-front
+          VariantName: AllTraffic
+
+  FuriosaEndpointBrakeFront:
+    Condition: CreateSageMakerResourcesCondition
+    Type: AWS::SageMaker::Endpoint
+    Properties:
+      EndpointConfigName: !GetAtt FuriosaEndpointConfigBrakeFront.EndpointConfigName
+      EndpointName: furiosa-maintenance-brake-front
+
+  FuriosaEndpointConfigBrakeRear:
+    Condition: CreateSageMakerResourcesCondition
+    Type: AWS::SageMaker::EndpointConfig
+    Properties:
+      ProductionVariants:
+        - InitialInstanceCount: 1
+          InitialVariantWeight: 1.0
+          InstanceType: ml.m5.large
+          ModelName: furiosa-maintenance-brake-rear
+          VariantName: AllTraffic
+
+  FuriosaEndpointBrakeRear:
+    Condition: CreateSageMakerResourcesCondition
+    Type: AWS::SageMaker::Endpoint
+    Properties:
+      EndpointConfigName: !GetAtt FuriosaEndpointConfigBrakeRear.EndpointConfigName
+      EndpointName: furiosa-maintenance-brake-rear
+
+  FuriosaEndpointConfigChain:
+    Condition: CreateSageMakerResourcesCondition
+    Type: AWS::SageMaker::EndpointConfig
+    Properties:
+      ProductionVariants:
+        - InitialInstanceCount: 1
+          InitialVariantWeight: 1.0
+          InstanceType: ml.m5.large
+          ModelName: furiosa-maintenance-chain
+          VariantName: AllTraffic
+
+  FuriosaEndpointChain:
+    Condition: CreateSageMakerResourcesCondition
+    Type: AWS::SageMaker::Endpoint
+    Properties:
+      EndpointConfigName: !GetAtt FuriosaEndpointConfigChain.EndpointConfigName
+      EndpointName: furiosa-maintenance-chain
+
+  FuriosaEndpointConfigTireFront:
+    Condition: CreateSageMakerResourcesCondition
+    Type: AWS::SageMaker::EndpointConfig
+    Properties:
+      ProductionVariants:
+        - InitialInstanceCount: 1
+          InitialVariantWeight: 1.0
+          InstanceType: ml.m5.large
+          ModelName: furiosa-maintenance-tire-front
+          VariantName: AllTraffic
+
+  FuriosaEndpointTireFront:
+    Condition: CreateSageMakerResourcesCondition
+    Type: AWS::SageMaker::Endpoint
+    Properties:
+      EndpointConfigName: !GetAtt FuriosaEndpointConfigTireFront.EndpointConfigName
+      EndpointName: furiosa-maintenance-tire-front
+
+  FuriosaEndpointConfigTireRear:
+    Condition: CreateSageMakerResourcesCondition
+    Type: AWS::SageMaker::EndpointConfig
+    Properties:
+      ProductionVariants:
+        - InitialInstanceCount: 1
+          InitialVariantWeight: 1.0
+          InstanceType: ml.m5.large
+          ModelName: furiosa-maintenance-tire-rear
+          VariantName: AllTraffic
+
+  FuriosaEndpointTireRear:
+    Condition: CreateSageMakerResourcesCondition
+    Type: AWS::SageMaker::Endpoint
+    Properties:
+      EndpointConfigName: !GetAtt FuriosaEndpointConfigTireRear.EndpointConfigName
+      EndpointName: furiosa-maintenance-tire-rear
+
+  FuriosaEndpointConfigUrgency:
+    Condition: CreateSageMakerResourcesCondition
+    Type: AWS::SageMaker::EndpointConfig
+    Properties:
+      ProductionVariants:
+        - InitialInstanceCount: 1
+          InitialVariantWeight: 1.0
+          InstanceType: ml.m5.large
+          ModelName: furiosa-maintenance-urgency
+          VariantName: AllTraffic
+
+  FuriosaEndpointUrgency:
+    Condition: CreateSageMakerResourcesCondition
+    Type: AWS::SageMaker::Endpoint
+    Properties:
+      EndpointConfigName: !GetAtt FuriosaEndpointConfigUrgency.EndpointConfigName
+      EndpointName: furiosa-maintenance-urgency
 
 Outputs:
   BucketName:
@@ -668,6 +787,3 @@ Outputs:
     Description: Regla IoT para ingestion.
     Value: !Ref FuriosaDataRule
 
-  GlueJobName:
-    Description: Job Glue para transformar raw a stage.
-    Value: !Ref GlueJobRawToStage

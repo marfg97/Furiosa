@@ -2,7 +2,7 @@ name: Deploy AWS Lambdas
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "infra-cloud" ]
     paths:
       - 'aws-cloud/lambda/**'
       - '.github/workflows/deploy-lambda.yml'
