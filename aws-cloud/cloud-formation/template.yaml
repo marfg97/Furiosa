@@ -1,6 +1,9 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: 'Furiosa Moto IoT - Infraestructura Base (Arquitectura AWS)'
 
+# Plantilla principal de infraestructura para el entorno de stage.
+# Organiza los recursos por capas funcionales para facilitar lectura, mantenimiento y despliegue
+
 Parameters:
   ProjectName:
     Type: String
@@ -32,7 +35,11 @@ Conditions:
   CreateSageMakerResourcesCondition: !Equals [ !Ref CreateSageMakerResources, 'true' ]
 
 Resources:
-  # --- CAPA DE ALMACENAMIENTO (S3 y DynamoDB) ---
+  # =========================================================
+  # CAPA 1: ALMACENAMIENTO Y PERSISTENCIA
+  # - S3 para datos crudos, stage y artefactos ML
+  # - DynamoDB para telemetría, sesiones, alertas y estado
+  # =========================================================
   
   # Bucket S3 para datos crudos, stage y ML
   FuriosaDataBucket:
@@ -53,7 +60,12 @@ Resources:
       Tags:
         - Key: Project
           Value: !Ref ProjectName
+  # --- CAPA DE BASE DE DATOS (DynamoDB) ---
 
+  # Telemetría principal del vehículo: guarda cada lectura del dispositivo
+  # (velocidad, temperatura, vibración, sensores, estado operacional, etc.).
+  # Sirve como histórico de tiempo real para dashboards, validación de eventos,
+  # auditoría y análisis de comportamiento del vehículo.
   FuriosaTelemetryTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -73,6 +85,9 @@ Resources:
         - Key: Project
           Value: !Ref ProjectName
 
+  # Registro de sesiones operativas: identifica cada ciclo de uso o viaje.
+  # Sirve para agrupar telemetría por sesión, medir duración, correlacionar
+  # eventos, y asociar predicciones o alertas con un mismo recorrido/uso.
   FuriosaSessionsTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -88,6 +103,11 @@ Resources:
         - Key: Project
           Value: !Ref ProjectName
 
+
+  # Resultados del modelo de mantenimiento predictivo.
+  # Almacena las predicciones para componentes como aceite, frenos, cadena,
+  # neumáticos y urgencia de servicio. Sirve para priorizar mantenimientos y
+  # mostrar recomendaciones dentro del dashboard/alertas del sistema.
   FuriosaPredictionsTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -103,6 +123,10 @@ Resources:
         - Key: Project
           Value: !Ref ProjectName
 
+  # Historial de mantenimiento del vehículo.
+  # Guarda eventos, tareas, intervenciones y estado del equipo en cada punto
+  # de servicio. Sirve para rastrear qué se reparó, cuándo y qué recomendación
+  # fue asumida o descartada.
   FuriosaMaintenanceTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -118,6 +142,10 @@ Resources:
         - Key: Project
           Value: !Ref ProjectName
 
+  # Registro de alertas operativas del sistema.
+  # Se usa para guardar eventos críticos o importantes generados por el
+  # monitoreo en tiempo real, facilitando la trazabilidad, análisis e historial
+  # de incidentes y notificaciones a usuarios o equipos.
   FuriosaAlertsTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -133,6 +161,10 @@ Resources:
         - Key: Project
           Value: !Ref ProjectName
 
+  # Estado actual del dispositivo o moto.
+  # Guarda el último valor conocido de cada condición crítica para permitir
+  # consultas rápidas por parte de Lambdas y dashboards. Sirve como caché del
+  # estado vivo del hardware y facilita la lógica de monitoreo operativo.
   FuriosaDeviceStateTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -148,6 +180,10 @@ Resources:
         - Key: Project
           Value: !Ref ProjectName
 
+  # Estado en vivo de la sesión activa.
+  # Mantiene el seguimiento del progreso y del estado actual de un viaje o
+  # sesión en ejecución. Se usa para conocer si una sesión está activa,
+  # pausada, finalizada o requiere intervención en tiempo real.
   FuriosaSessionStateTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -164,8 +200,14 @@ Resources:
           Value: !Ref ProjectName
 
 
- # --- CAPA DE IoT INGESTA  ---
-  
+  # =========================================================
+  # CAPA 2: IoT Y EVENTOS
+  # - Thing virtual del dashboard Android
+  # - Topic de alertas SNS
+  # - Regla de ingestión desde MQTT hacia S3/DynamoDB/Lambda
+  # =========================================================
+
+  # Representa el dispositivo o panel de Android conectado a Furiosa.
   FuriosaThing:
     Type: AWS::IoT::Thing
     Properties:
@@ -175,6 +217,7 @@ Resources:
           type: android-dashboard
           project: !Ref ProjectName
 
+  # Canal de notificación para alertas generadas por el pipeline de monitoreo.
   FuriosaAlertsTopic:
     Type: AWS::SNS::Topic
     Properties:
@@ -183,7 +226,11 @@ Resources:
       Subscription:
         - Endpoint: !Ref AlertEmail
           Protocol: email
-
+  # =========================================================
+  # CAPA 3: RED Y SEGURIDAD
+  # - VPC pública con subredes para recursos de cómputo y SageMaker
+  # - Gateway Internet para acceso exterior y conectividad de servicios
+  # =========================================================
   FuriosaVpc:
     Type: AWS::EC2::VPC
     Properties:
@@ -271,12 +318,18 @@ Resources:
         - Key: Project
           Value: !Ref ProjectName
 
+  # =========================================================
+  # CAPA 4: LOGS E IAM
+  # - Logs de errores de IoT
+  # - Roles para la regla de ingestión y para Lambdas
+  # =========================================================
   IoTErrorLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /aws/iot/furiosa-errors
       RetentionInDays: 30
 
+  # Rol de ejecución de la regla IoT: permite escribir a S3, DynamoDB y CloudWatch.
   IoTRuleRole:
     Type: AWS::IAM::Role
     Properties:
@@ -311,6 +364,10 @@ Resources:
                   - logs:PutLogEvents
                 Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/iot/furiosa-errors:*'
 
+
+  
+  # Regla IoT central: recibe mensajes del tópico 'moto/data' y los enruta
+  # a almacenamiento, base de datos y procesamiento en Lambda.
   FuriosaDataRule:
     Type: AWS::IoT::TopicRule
     Properties:
@@ -336,6 +393,8 @@ Resources:
           - Lambda:
               FunctionArn: !GetAtt L2SessionDetectorFunction.Arn
 
+  # Rol compartido por todas las funciones Lambda del pipeline de Furiosa.
+  # Centraliza permisos para DynamoDB, SNS, Lambda y SageMaker.
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -379,9 +438,14 @@ Resources:
                 Action:
                   - sagemaker:InvokeEndpoint
                 Resource: '*'
-  # --- CAPA DE COMPUTO (Lambdas y permisos) ---
+  # =========================================================
+  # CAPA 5: COMPUTO (Lambdas)
+  # Cada una representa un nivel del pipeline de analítica y automatización.
+  # Las funciones quedan definidas con payload placeholder y se despliegan
+  # en CI/CD cuando el código real ya está listo.
+  # =========================================================
 
-# Lambda: L1 - Monitor en tiempo real (código en aws-cloud/lambda/L1_realtime_monitor.py)
+  # L1 - monitor en tiempo real: detecta anomalías de telemetría operativa.
   L1RealtimeMonitorFunction:
     Type: AWS::Lambda::Function
     Metadata:
@@ -403,6 +467,7 @@ Resources:
           def lambda_handler(event, context):
               return {"statusCode": 200, "body": "placeholder - pendiente despliegue CI/CD"}
 
+  # L2 - detector de sesión: identifica ventanas operativas y correlaciones.
   L2SessionDetectorFunction:
     Type: AWS::Lambda::Function
     Metadata:
@@ -423,6 +488,7 @@ Resources:
           def lambda_handler(event, context):
               return {"statusCode": 200, "body": "placeholder - pendiente despliegue CI/CD"}
 
+  # L3 - predicción de mantenimiento: consume modelos y genera recomendaciones.
   L3MaintenancePredictFunction:
     Type: AWS::Lambda::Function
     Metadata:
@@ -444,6 +510,7 @@ Resources:
           def lambda_handler(event, context):
               return {"statusCode": 200, "body": "placeholder - pendiente despliegue CI/CD"}
 
+  # L4 - manejo de comandos por voz: procesa eventos de control/comandos.
   L4VoiceCommandHandlerFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -464,6 +531,7 @@ Resources:
           def lambda_handler(event, context):
               return {"statusCode": 200, "body": "placeholder L4"}
 
+  # L5 - despachador de alertas: centraliza la publicación y el enrutamiento.
   L5AlertDispatcherFunction:
     Type: AWS::Lambda::Function
     Metadata:
@@ -508,6 +576,10 @@ Resources:
       Principal: iot.amazonaws.com
       SourceArn: !Sub 'arn:aws:iot:${AWS::Region}:${AWS::AccountId}:rule/*'
 
+  # =========================================================
+  # CAPA 6: ML / SageMaker (opcional)
+  # Solo se crea si el parámetro CreateSageMakerResources se activa.
+  # =========================================================
   FuriosaSageMakerExecutionRole:
     Type: AWS::IAM::Role
     Properties:
