@@ -8,44 +8,57 @@ Input:   session_id + métricas de stage
 Output:  DynamoDB Furiosa_Predictions + SNS si urgencia crítica
 """
 
+# Responsabilidad principal:
+# - construir vector de features para mantenimiento predictivo
+# - consultar cada endpoint de SageMaker por componente
+# - guardar el resultado en DynamoDB y emitir alertas de urgencia
+#
+# Componentes monitoreados:
+#   oil, brake_front, brake_rear, chain, tire_front, tire_rear, urgency
+#
+# Flujo del proyecto:
+#   Glue Job / session data -> L3 -> SageMaker endpoints -> DynamoDB Predictions -> SNS
+#
+# Esta capa conecta la telemetría con la Inteligencia Artificial de mantenimiento.
+
 import boto3
 import json
 import time
 from datetime import datetime
 
-sm_runtime   = boto3.client("sagemaker-runtime", region_name="us-east-1")
-dynamodb     = boto3.resource("dynamodb",         region_name="us-east-1")
-sns_client   = boto3.client("sns",                region_name="us-east-1")
-lambda_client= boto3.client("lambda",             region_name="us-east-1")
+sm_runtime = boto3.client("sagemaker-runtime", region_name="us-east-1")
+dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+sns_client = boto3.client("sns", region_name="us-east-1")
+lambda_client = boto3.client("lambda", region_name="us-east-1")
 
-TABLE_PREDICTIONS  = dynamodb.Table("Furiosa_Predictions")
-TABLE_MAINTENANCE  = dynamodb.Table("Furiosa_Maintenance")
-TABLE_SESSIONS     = dynamodb.Table("Furiosa_Sessions")
+TABLE_PREDICTIONS = dynamodb.Table("Furiosa_Predictions")
+TABLE_MAINTENANCE = dynamodb.Table("Furiosa_Maintenance")
+TABLE_SESSIONS = dynamodb.Table("Furiosa_Sessions")
 
 SNS_TOPIC_ARN = "arn:aws:sns:us-east-1:329068432517:furiosa-alerts"
 
 # ─── Endpoints por componente ─────────────────────────────────
 ENDPOINTS = {
-    "oil":          "furiosa-maintenance-oil",
-    "brake_front":  "furiosa-maintenance-brake-front",
-    "brake_rear":   "furiosa-maintenance-brake-rear",
-    "chain":        "furiosa-maintenance-chain",
-    "tire_front":   "furiosa-maintenance-tire-front",
-    "tire_rear":    "furiosa-maintenance-tire-rear",
-    "urgency":      "furiosa-maintenance-urgency",
+    "oil": "furiosa-maintenance-oil",
+    "brake_front": "furiosa-maintenance-brake-front",
+    "brake_rear": "furiosa-maintenance-brake-rear",
+    "chain": "furiosa-maintenance-chain",
+    "tire_front": "furiosa-maintenance-tire-front",
+    "tire_rear": "furiosa-maintenance-tire-rear",
+    "urgency": "furiosa-maintenance-urgency",
 }
 
-URGENCY_MAP   = {0: "ok", 1: "watch", 2: "soon", 3: "critical"}
+URGENCY_MAP = {0: "ok", 1: "watch", 2: "soon", 3: "critical"}
 URGENCY_EMOJI = {"ok": "✅", "watch": "🟡", "soon": "⚠️", "critical": "🔴"}
-ROUTE_MAP     = {"urbana": 0, "carretera": 1, "montana": 2, "mixta": 3}
+ROUTE_MAP = {"urbana": 0, "carretera": 1, "montana": 2, "mixta": 3}
 
 COMPONENT_NAMES_ES = {
-    "oil":         "Aceite",
+    "oil": "Aceite",
     "brake_front": "Freno delantero",
-    "brake_rear":  "Freno trasero",
-    "chain":       "Cadena",
-    "tire_front":  "Llanta delantera",
-    "tire_rear":   "Llanta trasera",
+    "brake_rear": "Freno trasero",
+    "chain": "Cadena",
+    "tire_front": "Llanta delantera",
+    "tire_rear": "Llanta trasera",
 }
 
 
@@ -123,11 +136,14 @@ def invoke_endpoints(feature_vector):
                 predictions[f"remaining_km_{component}"] = -1
 
     # Componente más crítico
-    km_preds = {k: v for k, v in predictions.items()
-                if k.startswith("remaining_km_") and v >= 0}
+    km_preds = {
+        k: v for k, v in predictions.items() if k.startswith("remaining_km_") and v >= 0
+    }
     if km_preds:
         most_critical_key = min(km_preds, key=km_preds.get)
-        predictions["most_critical_component"] = most_critical_key.replace("remaining_km_", "")
+        predictions["most_critical_component"] = most_critical_key.replace(
+            "remaining_km_", ""
+        )
         predictions["most_critical_remaining_km"] = km_preds[most_critical_key]
 
     return predictions
@@ -136,29 +152,39 @@ def invoke_endpoints(feature_vector):
 def save_predictions(session_id, device_id, timestamp, predictions):
     """Guarda predicciones en DynamoDB."""
     item = {
-        "session_id":  session_id,
-        "timestamp":   str(timestamp),
-        "device_id":   device_id,
-        "date":        datetime.utcnow().strftime("%Y-%m-%d"),
+        "session_id": session_id,
+        "timestamp": str(timestamp),
+        "device_id": device_id,
+        "date": datetime.utcnow().strftime("%Y-%m-%d"),
         "predicted_at": str(int(time.time())),
-        **{k: str(v) for k, v in predictions.items()}
+        **{k: str(v) for k, v in predictions.items()},
     }
     TABLE_PREDICTIONS.put_item(Item=item)
 
     # Actualizar tabla de mantenimiento acumulado
-    TABLE_MAINTENANCE.put_item(Item={
-        "device_id":                    device_id,
-        "timestamp":                    str(timestamp),
-        "remaining_km_oil":             str(predictions.get("remaining_km_oil", 0)),
-        "remaining_km_brake_front":     str(predictions.get("remaining_km_brake_front", 0)),
-        "remaining_km_brake_rear":      str(predictions.get("remaining_km_brake_rear", 0)),
-        "remaining_km_chain":           str(predictions.get("remaining_km_chain", 0)),
-        "remaining_km_tire_front":      str(predictions.get("remaining_km_tire_front", 0)),
-        "remaining_km_tire_rear":       str(predictions.get("remaining_km_tire_rear", 0)),
-        "most_critical_component":      predictions.get("most_critical_component", ""),
-        "most_critical_remaining_km":   str(predictions.get("most_critical_remaining_km", 0)),
-        "urgency":                      predictions.get("urgency", "ok"),
-    })
+    TABLE_MAINTENANCE.put_item(
+        Item={
+            "device_id": device_id,
+            "timestamp": str(timestamp),
+            "remaining_km_oil": str(predictions.get("remaining_km_oil", 0)),
+            "remaining_km_brake_front": str(
+                predictions.get("remaining_km_brake_front", 0)
+            ),
+            "remaining_km_brake_rear": str(
+                predictions.get("remaining_km_brake_rear", 0)
+            ),
+            "remaining_km_chain": str(predictions.get("remaining_km_chain", 0)),
+            "remaining_km_tire_front": str(
+                predictions.get("remaining_km_tire_front", 0)
+            ),
+            "remaining_km_tire_rear": str(predictions.get("remaining_km_tire_rear", 0)),
+            "most_critical_component": predictions.get("most_critical_component", ""),
+            "most_critical_remaining_km": str(
+                predictions.get("most_critical_remaining_km", 0)
+            ),
+            "urgency": predictions.get("urgency", "ok"),
+        }
+    )
 
 
 def notify_if_critical(device_id, predictions):
@@ -169,9 +195,9 @@ def notify_if_critical(device_id, predictions):
         return
 
     most_critical = predictions.get("most_critical_component", "")
-    remaining_km  = predictions.get("most_critical_remaining_km", 0)
-    component_es  = COMPONENT_NAMES_ES.get(most_critical, most_critical)
-    emoji         = URGENCY_EMOJI.get(urgency, "⚠️")
+    remaining_km = predictions.get("most_critical_remaining_km", 0)
+    component_es = COMPONENT_NAMES_ES.get(most_critical, most_critical)
+    emoji = URGENCY_EMOJI.get(urgency, "⚠️")
 
     message = (
         f"{emoji} MANTENIMIENTO {urgency.upper()}\n"
@@ -193,8 +219,8 @@ def notify_if_critical(device_id, predictions):
             Message=message,
             MessageAttributes={
                 "device_id": {"DataType": "String", "StringValue": device_id},
-                "urgency":   {"DataType": "String", "StringValue": urgency},
-            }
+                "urgency": {"DataType": "String", "StringValue": urgency},
+            },
         )
         print(f"📲 Notificación enviada: {urgency}")
     except Exception as e:
@@ -206,15 +232,17 @@ def notify_if_critical(device_id, predictions):
             lambda_client.invoke(
                 FunctionName="furiosa-alert-dispatcher",
                 InvocationType="Event",
-                Payload=json.dumps({
-                    "device_id": device_id,
-                    "alert": {
-                        "metric":  f"maintenance_{most_critical}",
-                        "level":   "critical",
-                        "message": f"Mantenimiento crítico: {component_es} necesita atención en {remaining_km:.0f} km",
-                    },
-                    "mode": "dashboard",
-                }).encode(),
+                Payload=json.dumps(
+                    {
+                        "device_id": device_id,
+                        "alert": {
+                            "metric": f"maintenance_{most_critical}",
+                            "level": "critical",
+                            "message": f"Mantenimiento crítico: {component_es} necesita atención en {remaining_km:.0f} km",
+                        },
+                        "mode": "dashboard",
+                    }
+                ).encode(),
             )
         except Exception as e:
             print(f"Error invocando alert-dispatcher: {e}")
@@ -222,9 +250,9 @@ def notify_if_critical(device_id, predictions):
 
 def handler(event, context):
     session_id = event.get("session_id")
-    device_id  = event.get("device_id", "furiosa_01")
-    timestamp  = event.get("timestamp", str(int(time.time())))
-    session    = event.get("session_data", event)
+    device_id = event.get("device_id", "furiosa_01")
+    timestamp = event.get("timestamp", str(int(time.time())))
+    session = event.get("session_data", event)
 
     if not session_id:
         return {"statusCode": 400, "error": "session_id requerido"}
@@ -232,17 +260,19 @@ def handler(event, context):
     print(f"🤖 Prediciendo mantenimiento para sesión: {session_id}")
 
     feature_vector = build_feature_vector(session)
-    predictions    = invoke_endpoints(feature_vector)
+    predictions = invoke_endpoints(feature_vector)
 
     save_predictions(session_id, device_id, timestamp, predictions)
     notify_if_critical(device_id, predictions)
 
     print(f"✅ Predicciones guardadas — urgencia: {predictions.get('urgency')}")
-    print(f"   Componente crítico: {predictions.get('most_critical_component')} "
-          f"({predictions.get('most_critical_remaining_km', 0):.0f} km)")
+    print(
+        f"   Componente crítico: {predictions.get('most_critical_component')} "
+        f"({predictions.get('most_critical_remaining_km', 0):.0f} km)"
+    )
 
     return {
-        "statusCode":  200,
-        "session_id":  session_id,
+        "statusCode": 200,
+        "session_id": session_id,
         "predictions": predictions,
     }

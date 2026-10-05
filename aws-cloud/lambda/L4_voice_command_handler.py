@@ -8,21 +8,32 @@ Input:   { "text": "...", "device_id": "...", "mode": "riding|dashboard" }
 Output:  { "response_text": "...", "action": "...", "data": {...} }
 """
 
+# Responsabilidad principal:
+# - interpretar comandos de voz o texto con Bedrock
+# - obtener contexto del vehículo y historial para responder con sentido
+# - ejecutar acciones tales como marcar waypoint, reiniciar mantenimientos o grabar
+#
+# Flujo del proyecto:
+#   API Gateway -> L4 -> Bedrock + DynamoDB + S3 -> respuesta al cliente
+#
+# Su objetivo es convertir interacciones naturales en acciones operativas y
+# reusar datos del sistema para un asistente inteligente de la moto.
+
 import boto3
 import json
 import time
 from datetime import datetime
 
-bedrock      = boto3.client("bedrock-runtime", region_name="us-east-1")
-dynamodb     = boto3.resource("dynamodb",       region_name="us-east-1")
-lambda_client= boto3.client("lambda",           region_name="us-east-1")
-s3_client    = boto3.client("s3",               region_name="us-east-1")
+bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
+dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+lambda_client = boto3.client("lambda", region_name="us-east-1")
+s3_client = boto3.client("s3", region_name="us-east-1")
 
-TABLE_SESSIONS     = dynamodb.Table("Furiosa_Sessions")
-TABLE_MAINTENANCE  = dynamodb.Table("Furiosa_Maintenance")
-TABLE_PREDICTIONS  = dynamodb.Table("Furiosa_Predictions")
-TABLE_STATE        = dynamodb.Table("Furiosa_DeviceState")
-TABLE_SESSION_STATE= dynamodb.Table("Furiosa_Session_State")
+TABLE_SESSIONS = dynamodb.Table("Furiosa_Sessions")
+TABLE_MAINTENANCE = dynamodb.Table("Furiosa_Maintenance")
+TABLE_PREDICTIONS = dynamodb.Table("Furiosa_Predictions")
+TABLE_STATE = dynamodb.Table("Furiosa_DeviceState")
+TABLE_SESSION_STATE = dynamodb.Table("Furiosa_Session_State")
 
 BUCKET = "furiosa-data"
 
@@ -68,10 +79,10 @@ def get_context(device_id):
         state = response.get("Item", {})
         context["current"] = {
             "engine_temp_c": state.get("engine_temp", "N/A"),
-            "rpm":           state.get("rpm", "N/A"),
-            "speed_kmh":     state.get("speed", "N/A"),
-            "voltage":       state.get("voltage", "N/A"),
-            "last_seen":     state.get("last_seen", "N/A"),
+            "rpm": state.get("rpm", "N/A"),
+            "speed_kmh": state.get("speed", "N/A"),
+            "voltage": state.get("voltage", "N/A"),
+            "last_seen": state.get("last_seen", "N/A"),
         }
     except Exception as e:
         print(f"Error getting device state: {e}")
@@ -89,13 +100,13 @@ def get_context(device_id):
         if items:
             m = items[0]
             context["maintenance"] = {
-                "aceite_km":         m.get("remaining_km_oil", "N/A"),
-                "freno_del_km":      m.get("remaining_km_brake_front", "N/A"),
-                "freno_tra_km":      m.get("remaining_km_brake_rear", "N/A"),
-                "cadena_km":         m.get("remaining_km_chain", "N/A"),
-                "llanta_del_km":     m.get("remaining_km_tire_front", "N/A"),
-                "llanta_tra_km":     m.get("remaining_km_tire_rear", "N/A"),
-                "urgencia":          m.get("urgency", "ok"),
+                "aceite_km": m.get("remaining_km_oil", "N/A"),
+                "freno_del_km": m.get("remaining_km_brake_front", "N/A"),
+                "freno_tra_km": m.get("remaining_km_brake_rear", "N/A"),
+                "cadena_km": m.get("remaining_km_chain", "N/A"),
+                "llanta_del_km": m.get("remaining_km_tire_front", "N/A"),
+                "llanta_tra_km": m.get("remaining_km_tire_rear", "N/A"),
+                "urgencia": m.get("urgency", "ok"),
                 "componente_critico": m.get("most_critical_component", "ninguno"),
             }
     except Exception as e:
@@ -109,12 +120,15 @@ def get_context(device_id):
             ExpressionAttributeValues={":d": device_id},
             Limit=5,
         )
-        items = sorted(response.get("Items", []),
-                       key=lambda x: x.get("timestamp", "0"), reverse=True)
+        items = sorted(
+            response.get("Items", []),
+            key=lambda x: x.get("timestamp", "0"),
+            reverse=True,
+        )
         if items:
             s = items[0]
             context["last_session"] = {
-                "fecha":        s.get("date", "N/A"),
+                "fecha": s.get("date", "N/A"),
                 "distancia_km": s.get("distance_km", "N/A"),
                 "duracion_min": s.get("duration_min", "N/A"),
             }
@@ -128,18 +142,19 @@ def get_context(device_id):
 def call_bedrock(text, context, mode):
     """Llama a Claude via Bedrock para procesar el comando."""
     system = SYSTEM_PROMPT.format(
-        context=json.dumps(context, indent=2, ensure_ascii=False),
-        mode=mode
+        context=json.dumps(context, indent=2, ensure_ascii=False), mode=mode
     )
 
     response = bedrock.invoke_model(
         modelId="anthropic.claude-3-5-sonnet-20241022-v2:0",
-        body=json.dumps({
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 512,
-            "system": system,
-            "messages": [{"role": "user", "content": text}],
-        }),
+        body=json.dumps(
+            {
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": 512,
+                "system": system,
+                "messages": [{"role": "user", "content": text}],
+            }
+        ),
         contentType="application/json",
         accept="application/json",
     )
@@ -154,11 +169,11 @@ def call_bedrock(text, context, mode):
         return json.loads(clean)
     except Exception:
         return {
-            "intent":        "QUERY",
+            "intent": "QUERY",
             "response_text": raw_text,
-            "action":        "none",
+            "action": "none",
             "action_params": {},
-            "language":      "es",
+            "language": "es",
         }
 
 
@@ -190,9 +205,9 @@ def execute_action(action, action_params, device_id):
         tag = action_params.get("tag", "waypoint")
         # Guardar waypoint en S3
         waypoint = {
-            "device_id":  device_id,
-            "timestamp":  str(int(time.time())),
-            "tag":        tag,
+            "device_id": device_id,
+            "timestamp": str(int(time.time())),
+            "tag": tag,
             "created_at": datetime.utcnow().isoformat(),
         }
         s3_client.put_object(
@@ -206,23 +221,25 @@ def execute_action(action, action_params, device_id):
         # Resetear contador de km desde último servicio
         component = action.replace("reset_", "")
         component_names = {
-            "oil":         "aceite",
+            "oil": "aceite",
             "brake_front": "freno delantero",
-            "brake_rear":  "freno trasero",
-            "chain":       "cadena",
-            "tire_front":  "llanta delantera",
-            "tire_rear":   "llanta trasera",
+            "brake_rear": "freno trasero",
+            "chain": "cadena",
+            "tire_front": "llanta delantera",
+            "tire_rear": "llanta trasera",
         }
         name_es = component_names.get(component, component)
 
         # Guardar reset en DynamoDB
-        dynamodb.Table("Furiosa_Maintenance_Resets").put_item(Item={
-            "device_id":   device_id,
-            "timestamp":   str(int(time.time())),
-            "component":   component,
-            "reset_date":  datetime.utcnow().strftime("%Y-%m-%d"),
-            "reset_by":    "voice_command",
-        })
+        dynamodb.Table("Furiosa_Maintenance_Resets").put_item(
+            Item={
+                "device_id": device_id,
+                "timestamp": str(int(time.time())),
+                "component": component,
+                "reset_date": datetime.utcnow().strftime("%Y-%m-%d"),
+                "reset_by": "voice_command",
+            }
+        )
         result = {"executed": True, "message": f"Contador de {name_es} reiniciado"}
 
     print(f"⚡ Acción ejecutada: {action} → {result}")
@@ -234,9 +251,9 @@ def handler(event, context):
     if isinstance(event.get("body"), str):
         body = json.loads(event["body"])
 
-    text      = body.get("text", "")
+    text = body.get("text", "")
     device_id = body.get("device_id", "furiosa_01")
-    mode      = body.get("mode", "dashboard")  # riding | dashboard
+    mode = body.get("mode", "dashboard")  # riding | dashboard
 
     if not text:
         return {
@@ -264,14 +281,19 @@ def handler(event, context):
 
     return {
         "statusCode": 200,
-        "headers":    {"Content-Type": "application/json",
-                       "Access-Control-Allow-Origin": "*"},
-        "body": json.dumps({
-            "response_text":  response_text,
-            "intent":         agent_response.get("intent"),
-            "action":         agent_response.get("action", "none"),
-            "action_executed": action_result.get("executed", False),
-            "language":       agent_response.get("language", "es"),
-            "mode":           mode,
-        }, ensure_ascii=False),
+        "headers": {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+        },
+        "body": json.dumps(
+            {
+                "response_text": response_text,
+                "intent": agent_response.get("intent"),
+                "action": agent_response.get("action", "none"),
+                "action_executed": action_result.get("executed", False),
+                "language": agent_response.get("language", "es"),
+                "mode": mode,
+            },
+            ensure_ascii=False,
+        ),
     }

@@ -8,78 +8,88 @@ Input:   Payload raw de moto/data
 Output:  Invoca L5 alert-dispatcher si hay alerta
 """
 
+# Responsabilidad principal:
+# - validar cada lectura recibida desde el dispositivo IoT
+# - detectar condiciones fuera de rango
+# - escribir alertas en DynamoDB y disparar alertas a L5
+#
+# Flujo del proyecto:
+#   IoT Core -> L1 -> DynamoDB(Furiosa_Alerts / Furiosa_DeviceState) -> L5 -> SNS
+#
+# Este nivel actúa como primera línea de defensa para seguridad operativa de la moto.
+
 import boto3
 import json
 import os
 import time
 from datetime import datetime
 
-lambda_client = boto3.client("lambda",    region_name="us-east-1")
-dynamodb      = boto3.resource("dynamodb", region_name="us-east-1")
+lambda_client = boto3.client("lambda", region_name="us-east-1")
+dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
 
-TABLE_ALERTS   = dynamodb.Table("Furiosa_Alerts")
-TABLE_STATE    = dynamodb.Table("Furiosa_DeviceState")
+TABLE_ALERTS = dynamodb.Table("Furiosa_Alerts")
+TABLE_STATE = dynamodb.Table("Furiosa_DeviceState")
 
 # ─── Umbrales configurables ───────────────────────────────────
 THRESHOLDS = {
     "engine_temp_c": {
-        "warn":     90,
+        "warn": 90,
         "critical": 95,
-        "message_warn":     "Temperatura del motor en {val}°C, PRECAUCIÓN!",
+        "message_warn": "Temperatura del motor en {val}°C, PRECAUCIÓN!",
         "message_critical": "Temperatura del motor crítica en {val}°C, PARAR LA MOTO!",
     },
     "oil_temp_c": {
-        "warn":     95,
+        "warn": 95,
         "critical": 105,
-        "message_warn":     "Temperatura del aceite en {val}°C",
+        "message_warn": "Temperatura del aceite en {val}°C",
         "message_critical": "Aceite sobrecalentado en {val}°C, para inmediatamente",
     },
     "voltage_bike": {
-        "warn":     12.0,
+        "warn": 12.0,
         "critical": 11.5,
-        "mode":     "below",
-        "message_warn":     "Voltaje bajo en {val}V, REVISAR BATERÍA",
+        "mode": "below",
+        "message_warn": "Voltaje bajo en {val}V, REVISAR BATERÍA",
         "message_critical": "Voltaje crítico en {val}V, RIESGO BATERIA",
     },
     "battery_cel_percent": {
-        "warn":     20,
+        "warn": 20,
         "critical": 10,
-        "mode":     "below",
-        "message_warn":     "Batería del celular al {val}%, conéctalo pronto",
+        "mode": "below",
+        "message_warn": "Batería del celular al {val}%, conéctalo pronto",
         "message_critical": "Batería del celular al {val}%, se apagará pronto",
     },
     "tire_pressure_front_psi": {
-        "warn":     28,
+        "warn": 28,
         "critical": 25,
-        "mode":     "below",
-        "message_warn":     "Presión delantera baja en {val} PSI",
+        "mode": "below",
+        "message_warn": "Presión delantera baja en {val} PSI",
         "message_critical": "Presión delantera crítica en {val} PSI, para ahora",
     },
     "tire_pressure_rear_psi": {
-        "warn":     30,
+        "warn": 30,
         "critical": 27,
-        "mode":     "below",
-        "message_warn":     "Presión trasera baja en {val} PSI",
+        "mode": "below",
+        "message_warn": "Presión trasera baja en {val} PSI",
         "message_critical": "Presión trasera crítica en {val} PSI, para ahora",
     },
     "vibration_max": {
-        "warn":     0.5,
+        "warn": 0.5,
         "critical": 0.8,
-        "message_warn":     "Vibración inusual detectada, REVISAR!",
+        "message_warn": "Vibración inusual detectada, REVISAR!",
         "message_critical": "Vibración crítica detectada, ¡PARA LA MOTO!",
     },
     "rpm": {
-        "warn":     7000,
+        "warn": 7000,
         "critical": 8000,
-        "message_warn":     "RPM en zona de advertencia: {val}",
+        "message_warn": "RPM en zona de advertencia: {val}",
         "message_critical": "RPM crítico: {val}, reduce velocidad",
     },
 }
 
 # ─── Cooldown por alerta (segundos) ──────────────────────────
 ALERT_COOLDOWN = {
-    "warn":     120,   # 2 minutos entre alertas del mismo tipo
-    "critical":  30,   # 30 segundos para críticas
+    "warn": 120,  # 2 minutos entre alertas del mismo tipo
+    "critical": 30,  # 30 segundos para críticas
 }
 
 # Cache en memoria para cooldown (se resetea por cold start)
@@ -91,7 +101,7 @@ def check_threshold(metric, value, last_state):
     if metric not in THRESHOLDS:
         return None
 
-    cfg  = THRESHOLDS[metric]
+    cfg = THRESHOLDS[metric]
     mode = cfg.get("mode", "above")  # above=mayor, below=menor
 
     level = None
@@ -123,9 +133,9 @@ def check_threshold(metric, value, last_state):
     message = cfg[msg_key].format(val=round(value, 1))
 
     return {
-        "metric":  metric,
-        "value":   value,
-        "level":   level,
+        "metric": metric,
+        "value": value,
+        "level": level,
         "message": message,
     }
 
@@ -138,33 +148,39 @@ def detect_anomalies(payload):
     voltage = payload.get("voltage_bike", 0)
     prev_voltage = payload.get("_prev_voltage", voltage)
     if prev_voltage - voltage > 0.3:
-        anomalies.append({
-            "metric":  "voltage_drop_sudden",
-            "value":   round(prev_voltage - voltage, 3),
-            "level":   "critical",
-            "message": f"Caída brusca de voltaje: {round(prev_voltage - voltage, 2)}V",
-        })
+        anomalies.append(
+            {
+                "metric": "voltage_drop_sudden",
+                "value": round(prev_voltage - voltage, 3),
+                "level": "critical",
+                "message": f"Caída brusca de voltaje: {round(prev_voltage - voltage, 2)}V",
+            }
+        )
 
     # Motor caliente + RPM alto + mucho tiempo
     engine_temp = payload.get("engine_temp_c", 0)
-    rpm         = payload.get("rpm", 0)
+    rpm = payload.get("rpm", 0)
     if engine_temp > 88 and rpm > 5500:
-        anomalies.append({
-            "metric":  "engine_stress",
-            "value":   engine_temp,
-            "level":   "warn",
-            "message": f"Motor estresado: {engine_temp}°C a {rpm} RPM",
-        })
+        anomalies.append(
+            {
+                "metric": "engine_stress",
+                "value": engine_temp,
+                "level": "warn",
+                "message": f"Motor estresado: {engine_temp}°C a {rpm} RPM",
+            }
+        )
 
     # Inclinación extrema
     roll = abs(payload.get("rotation_roll_deg", 0))
     if roll > 45:
-        anomalies.append({
-            "metric":  "extreme_lean",
-            "value":   roll,
-            "level":   "warn",
-            "message": f"Inclinación extrema: {round(roll, 1)}°",
-        })
+        anomalies.append(
+            {
+                "metric": "extreme_lean",
+                "value": roll,
+                "level": "warn",
+                "message": f"Inclinación extrema: {round(roll, 1)}°",
+            }
+        )
 
     return anomalies
 
@@ -172,15 +188,17 @@ def detect_anomalies(payload):
 def save_alert(device_id, alert, timestamp):
     """Guarda la alerta en DynamoDB."""
     try:
-        TABLE_ALERTS.put_item(Item={
-            "device_id":   device_id,
-            "timestamp":   str(timestamp),
-            "metric":      alert["metric"],
-            "value":       str(alert["value"]),
-            "level":       alert["level"],
-            "message":     alert["message"],
-            "date":        datetime.utcnow().strftime("%Y-%m-%d"),
-        })
+        TABLE_ALERTS.put_item(
+            Item={
+                "device_id": device_id,
+                "timestamp": str(timestamp),
+                "metric": alert["metric"],
+                "value": str(alert["value"]),
+                "level": alert["level"],
+                "message": alert["message"],
+                "date": datetime.utcnow().strftime("%Y-%m-%d"),
+            }
+        )
     except Exception as e:
         print(f"Error guardando alerta: {e}")
 
@@ -191,11 +209,13 @@ def dispatch_alert(device_id, alert):
         lambda_client.invoke(
             FunctionName="furiosa-alert-dispatcher",
             InvocationType="Event",  # asíncrono
-            Payload=json.dumps({
-                "device_id": device_id,
-                "alert":     alert,
-                "mode":      "riding",  # voz corta
-            }).encode(),
+            Payload=json.dumps(
+                {
+                    "device_id": device_id,
+                    "alert": alert,
+                    "mode": "riding",  # voz corta
+                }
+            ).encode(),
         )
     except Exception as e:
         print(f"Error dispatching alert: {e}")
@@ -204,18 +224,18 @@ def dispatch_alert(device_id, alert):
 def handler(event, context):
     device_id = event.get("device_id", "furiosa_01")
     timestamp = event.get("timestamp", str(int(time.time())))
-    alerts    = []
+    alerts = []
 
     # Evaluar cada métrica contra umbrales
     metrics_to_check = {
-        "engine_temp_c":           event.get("engine_temp_c"),
-        "oil_temp_c":              event.get("oil_temp_c"),
-        "voltage_bike":            event.get("voltage_bike"),
-        "battery_cel_percent":     event.get("battery_cel_percent"),
+        "engine_temp_c": event.get("engine_temp_c"),
+        "oil_temp_c": event.get("oil_temp_c"),
+        "voltage_bike": event.get("voltage_bike"),
+        "battery_cel_percent": event.get("battery_cel_percent"),
         "tire_pressure_front_psi": event.get("tire_pressure_front_psi"),
-        "tire_pressure_rear_psi":  event.get("tire_pressure_rear_psi"),
-        "vibration_max":           event.get("vibration_max"),
-        "rpm":                     event.get("rpm"),
+        "tire_pressure_rear_psi": event.get("tire_pressure_rear_psi"),
+        "vibration_max": event.get("vibration_max"),
+        "rpm": event.get("rpm"),
     }
 
     for metric, value in metrics_to_check.items():
@@ -236,16 +256,18 @@ def handler(event, context):
 
     # Actualizar estado del dispositivo en DynamoDB
     try:
-        TABLE_STATE.put_item(Item={
-            "device_id":   device_id,
-            "timestamp":   str(timestamp),
-            "last_seen":   str(int(time.time())),
-            "engine_temp": str(event.get("engine_temp_c", 0)),
-            "rpm":         str(event.get("rpm", 0)),
-            "speed":       str(event.get("gps_speed_kmh", 0)),
-            "voltage":     str(event.get("voltage_bike", 0)),
-            "alerts_count": str(len(alerts)),
-        })
+        TABLE_STATE.put_item(
+            Item={
+                "device_id": device_id,
+                "timestamp": str(timestamp),
+                "last_seen": str(int(time.time())),
+                "engine_temp": str(event.get("engine_temp_c", 0)),
+                "rpm": str(event.get("rpm", 0)),
+                "speed": str(event.get("gps_speed_kmh", 0)),
+                "voltage": str(event.get("voltage_bike", 0)),
+                "alerts_count": str(len(alerts)),
+            }
+        )
     except Exception as e:
         print(f"Error actualizando estado: {e}")
 

@@ -8,31 +8,40 @@ Input:   Payload raw
 Output:  DynamoDB Furiosa_Sessions_State + dispara Glue Job
 """
 
+# Responsabilidad principal:
+# - detectar cuando comienza y termina una sesión de conducción
+# - acumular distancia GPS y timestamps
+# - guardar metadata útil para análisis posterior y postprocessing ETL
+#
+# Flujo del proyecto:
+#   IoT Core -> L2 -> DynamoDB(Furiosa_Session_State / Furiosa_Sessions) -> Glue Job
+#
+# Aunque el Glue Job se está dejando para otra etapa de despliegue, esta lambda ya
+# prepara la estructura de sesión para que el pipeline ETL pueda reutilizarla.
+
 import boto3
 import json
 import time
 import os
 from datetime import datetime
 
-dynamodb     = boto3.resource("dynamodb", region_name="us-east-1")
-glue_client  = boto3.client("glue",      region_name="us-east-1")
-lambda_client= boto3.client("lambda",    region_name="us-east-1")
+dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+glue_client = boto3.client("glue", region_name="us-east-1")
+lambda_client = boto3.client("lambda", region_name="us-east-1")
 
 TABLE_SESSION_STATE = dynamodb.Table("Furiosa_Session_State")
-TABLE_SESSIONS      = dynamodb.Table("Furiosa_Sessions")
+TABLE_SESSIONS = dynamodb.Table("Furiosa_Sessions")
 
 # ─── Config ───────────────────────────────────────────────────
-ENGINE_OFF_TIMEOUT_SEC = 120   # 2 min sin datos o engine_on=false → sesión terminada
-MIN_SESSION_DISTANCE   = 0.5   # km mínimos para considerar sesión válida
-GLUE_JOB_NAME          = "furiosa-raw-to-stage"
+ENGINE_OFF_TIMEOUT_SEC = 120  # 2 min sin datos o engine_on=false → sesión terminada
+MIN_SESSION_DISTANCE = 0.5  # km mínimos para considerar sesión válida
+GLUE_JOB_NAME = "furiosa-raw-to-stage"
 
 
 def get_session_state(device_id):
     """Obtiene el estado actual de sesión del dispositivo."""
     try:
-        response = TABLE_SESSION_STATE.get_item(
-            Key={"device_id": device_id}
-        )
+        response = TABLE_SESSION_STATE.get_item(Key={"device_id": device_id})
         return response.get("Item")
     except Exception as e:
         print(f"Error getting session state: {e}")
@@ -49,15 +58,17 @@ def save_session_state(state):
 
 def close_session(device_id, state, last_payload):
     """Cierra la sesión actual y dispara el procesamiento."""
-    session_id  = state["session_id"]
-    start_ts    = int(state["session_start_ts"])
-    end_ts      = int(time.time())
-    duration_min= (end_ts - start_ts) / 60
+    session_id = state["session_id"]
+    start_ts = int(state["session_start_ts"])
+    end_ts = int(time.time())
+    duration_min = (end_ts - start_ts) / 60
 
     # Calcular distancia acumulada
     distance_km = float(state.get("distance_km_accum", 0))
 
-    print(f"🏁 Cerrando sesión {session_id} — {round(distance_km, 2)} km — {round(duration_min, 1)} min")
+    print(
+        f"🏁 Cerrando sesión {session_id} — {round(distance_km, 2)} km — {round(duration_min, 1)} min"
+    )
 
     if distance_km < MIN_SESSION_DISTANCE:
         print(f"⚠️  Sesión descartada (distancia < {MIN_SESSION_DISTANCE} km)")
@@ -66,21 +77,21 @@ def close_session(device_id, state, last_payload):
 
     # Guardar sesión en DynamoDB
     session_record = {
-        "session_id":        session_id,
-        "device_id":         device_id,
-        "timestamp":         str(end_ts),
-        "session_start_ts":  str(start_ts),
-        "session_end_ts":    str(end_ts),
-        "duration_min":      str(round(duration_min, 2)),
-        "distance_km":       str(round(distance_km, 2)),
+        "session_id": session_id,
+        "device_id": device_id,
+        "timestamp": str(end_ts),
+        "session_start_ts": str(start_ts),
+        "session_end_ts": str(end_ts),
+        "duration_min": str(round(duration_min, 2)),
+        "distance_km": str(round(distance_km, 2)),
         "odometer_start_km": str(state.get("odometer_start_km", 0)),
-        "odometer_end_km":   str(last_payload.get("odometer_km", 0)),
-        "date":              datetime.utcfromtimestamp(start_ts).strftime("%Y-%m-%d"),
-        "year":              str(datetime.utcfromtimestamp(start_ts).year),
-        "month":             str(datetime.utcfromtimestamp(start_ts).month),
-        "day":               str(datetime.utcfromtimestamp(start_ts).day),
-        "status":            "closed",
-        "glue_triggered":    "false",
+        "odometer_end_km": str(last_payload.get("odometer_km", 0)),
+        "date": datetime.utcfromtimestamp(start_ts).strftime("%Y-%m-%d"),
+        "year": str(datetime.utcfromtimestamp(start_ts).year),
+        "month": str(datetime.utcfromtimestamp(start_ts).month),
+        "day": str(datetime.utcfromtimestamp(start_ts).day),
+        "status": "closed",
+        "glue_triggered": "false",
     }
     TABLE_SESSIONS.put_item(Item=session_record)
 
@@ -93,12 +104,14 @@ def close_session(device_id, state, last_payload):
 
 def clear_session_state(device_id):
     """Limpia el estado de sesión activa."""
-    TABLE_SESSION_STATE.put_item(Item={
-        "device_id":    device_id,
-        "active":       "false",
-        "session_id":   "none",
-        "last_updated": str(int(time.time())),
-    })
+    TABLE_SESSION_STATE.put_item(
+        Item={
+            "device_id": device_id,
+            "active": "false",
+            "session_id": "none",
+            "last_updated": str(int(time.time())),
+        }
+    )
 
 
 def trigger_glue_job(session_id, device_id, start_ts, end_ts):
@@ -107,12 +120,12 @@ def trigger_glue_job(session_id, device_id, start_ts, end_ts):
         response = glue_client.start_job_run(
             JobName=GLUE_JOB_NAME,
             Arguments={
-                "--session_id":  session_id,
-                "--device_id":   device_id,
-                "--start_ts":    str(start_ts),
-                "--end_ts":      str(end_ts),
-                "--bucket":      "furiosa-data",
-            }
+                "--session_id": session_id,
+                "--device_id": device_id,
+                "--start_ts": str(start_ts),
+                "--end_ts": str(end_ts),
+                "--bucket": "furiosa-data",
+            },
         )
         run_id = response["JobRunId"]
         print(f"✅ Glue Job iniciado: {run_id}")
@@ -130,23 +143,28 @@ def trigger_glue_job(session_id, device_id, start_ts, end_ts):
 def calculate_distance(lat1, lon1, lat2, lon2):
     """Haversine — distancia en km entre dos coordenadas GPS."""
     import math
+
     R = 6371
     dlat = math.radians(lat2 - lat1)
     dlon = math.radians(lon2 - lon1)
-    a = (math.sin(dlat/2)**2 +
-         math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon/2)**2)
+    a = (
+        math.sin(dlat / 2) ** 2
+        + math.cos(math.radians(lat1))
+        * math.cos(math.radians(lat2))
+        * math.sin(dlon / 2) ** 2
+    )
     return R * 2 * math.asin(math.sqrt(a))
 
 
 def handler(event, context):
-    device_id  = event.get("device_id", "furiosa_01")
-    engine_on  = event.get("engine_on", False)
-    timestamp  = int(str(event.get("timestamp", int(time.time()))).replace('"', ''))
-    now        = int(time.time())
+    device_id = event.get("device_id", "furiosa_01")
+    engine_on = event.get("engine_on", False)
+    timestamp = int(str(event.get("timestamp", int(time.time()))).replace('"', ""))
+    now = int(time.time())
 
-    gps_lat    = float(event.get("gps_lat", 0))
-    gps_lon    = float(event.get("gps_lon", 0))
-    odometer   = float(event.get("odometer_km", 0))
+    gps_lat = float(event.get("gps_lat", 0))
+    gps_lon = float(event.get("gps_lon", 0))
+    odometer = float(event.get("odometer_km", 0))
 
     state = get_session_state(device_id)
 
@@ -155,20 +173,22 @@ def handler(event, context):
         if engine_on:
             # Iniciar nueva sesión
             session_num = int(state.get("session_count", 0)) + 1 if state else 1
-            session_id  = f"{device_id}_{datetime.utcnow().strftime('%Y%m%d')}_{session_num:03d}"
+            session_id = (
+                f"{device_id}_{datetime.utcnow().strftime('%Y%m%d')}_{session_num:03d}"
+            )
 
             new_state = {
-                "device_id":          device_id,
-                "active":             "true",
-                "session_id":         session_id,
-                "session_start_ts":   str(now),
-                "last_seen_ts":       str(now),
-                "last_lat":           str(gps_lat),
-                "last_lon":           str(gps_lon),
-                "odometer_start_km":  str(odometer),
-                "distance_km_accum":  "0",
-                "session_count":      str(session_num),
-                "last_updated":       str(now),
+                "device_id": device_id,
+                "active": "true",
+                "session_id": session_id,
+                "session_start_ts": str(now),
+                "last_seen_ts": str(now),
+                "last_lat": str(gps_lat),
+                "last_lon": str(gps_lon),
+                "odometer_start_km": str(odometer),
+                "distance_km_accum": "0",
+                "session_count": str(session_num),
+                "last_updated": str(now),
             }
             save_session_state(new_state)
             print(f"🟢 Sesión iniciada: {session_id}")
@@ -176,7 +196,7 @@ def handler(event, context):
 
     # ── CASO 2: Sesión activa ────────────────────────────────
     last_seen = int(state.get("last_seen_ts", now))
-    elapsed   = now - last_seen
+    elapsed = now - last_seen
 
     # ¿Sesión terminó? (motor apagado o timeout)
     if not engine_on or elapsed > ENGINE_OFF_TIMEOUT_SEC:
@@ -184,24 +204,26 @@ def handler(event, context):
         return {"statusCode": 200, "action": "session_closed"}
 
     # Acumular distancia
-    last_lat    = float(state.get("last_lat", gps_lat))
-    last_lon    = float(state.get("last_lon", gps_lon))
-    delta_km    = calculate_distance(last_lat, last_lon, gps_lat, gps_lon)
-    accum_km    = float(state.get("distance_km_accum", 0)) + delta_km
+    last_lat = float(state.get("last_lat", gps_lat))
+    last_lon = float(state.get("last_lon", gps_lon))
+    delta_km = calculate_distance(last_lat, last_lon, gps_lat, gps_lon)
+    accum_km = float(state.get("distance_km_accum", 0)) + delta_km
 
     # Actualizar estado
-    state.update({
-        "last_seen_ts":      str(now),
-        "last_lat":          str(gps_lat),
-        "last_lon":          str(gps_lon),
-        "distance_km_accum": str(round(accum_km, 4)),
-        "last_updated":      str(now),
-    })
+    state.update(
+        {
+            "last_seen_ts": str(now),
+            "last_lat": str(gps_lat),
+            "last_lon": str(gps_lon),
+            "distance_km_accum": str(round(accum_km, 4)),
+            "last_updated": str(now),
+        }
+    )
     save_session_state(state)
 
     return {
-        "statusCode":  200,
-        "action":      "session_updated",
-        "session_id":  state["session_id"],
+        "statusCode": 200,
+        "action": "session_updated",
+        "session_id": state["session_id"],
         "distance_km": round(accum_km, 2),
     }
