@@ -19,21 +19,35 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - name: Detect changed Lambda files
         id: filter
         run: |
-          CHANGED=$(git diff --name-only HEAD HEAD~1 | grep 'aws-cloud/lambda/.*\.py' | sed 's|aws-cloud/lambda/||' | sed 's|\.py||' | tr '\n' ',' | sed 's/,$//')
-          echo "changed_lambdas=$CHANGED" >> $GITHUB_OUTPUT
-          echo "Cambios detectados: $CHANGED"
+          # Obtener los archivos cambiados
+          CHANGED=$(git diff --name-only HEAD~1 HEAD | grep 'aws-cloud/lambda/.*\.py' || true)
+          
+          # Extraer solo los nombres (sin ruta ni extensión)
+          LAMBDAS=""
+          for file in $CHANGED; do
+            NAME=$(basename "$file" .py)
+            LAMBDAS="$LAMBDAS\"$NAME\","
+          done
+          
+          # Quitar la última coma y envolver en JSON array
+          LAMBDAS="[${LAMBDAS%,}]"
+          
+          echo "changed_lambdas=$LAMBDAS" >> $GITHUB_OUTPUT
+          echo "Cambios detectados: $LAMBDAS"
 
   deploy:
     needs: detect-and-deploy
-    if: needs.detect-and-deploy.outputs.changed_lambdas != ''
+    if: needs.detect-and-deploy.outputs.changed_lambdas != '[]'
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        lambda: ${{ fromJson(format('["{0}"]', join(split(needs.detect-and-deploy.outputs.changed_lambdas, ','), '","'))) }}
+        lambda: ${{ fromJson(needs.detect-and-deploy.outputs.changed_lambdas) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -46,7 +60,7 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
           aws-region: us-east-1
 
       - name: Package Lambda
