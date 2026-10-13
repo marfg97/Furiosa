@@ -21,6 +21,7 @@ Output:  DynamoDB Furiosa_Predictions + SNS si urgencia crítica
 #
 # Esta capa conecta la telemetría con la Inteligencia Artificial de mantenimiento.
 
+import os
 import boto3
 import json
 import time
@@ -35,6 +36,7 @@ TABLE_PREDICTIONS = dynamodb.Table("Furiosa_Predictions")
 TABLE_MAINTENANCE = dynamodb.Table("Furiosa_Maintenance")
 TABLE_SESSIONS = dynamodb.Table("Furiosa_Sessions")
 
+L5_FUNCTION_NAME = os.environ.get("ALERT_DISPATCHER_FUNCTION", "L5_alert_dispatcher")
 SNS_TOPIC_ARN = "arn:aws:sns:us-east-1:329068432517:furiosa-alerts"
 
 # ─── Endpoints por componente ─────────────────────────────────
@@ -230,7 +232,7 @@ def notify_if_critical(device_id, predictions):
     if urgency == "critical":
         try:
             lambda_client.invoke(
-                FunctionName="furiosa-alert-dispatcher",
+                FunctionName=L5_FUNCTION_NAME,
                 InvocationType="Event",
                 Payload=json.dumps(
                     {

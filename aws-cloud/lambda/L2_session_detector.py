@@ -16,8 +16,7 @@ Output:  DynamoDB Furiosa_Sessions_State + dispara Glue Job
 # Flujo del proyecto:
 #   IoT Core -> L2 -> DynamoDB(Furiosa_Session_State / Furiosa_Sessions) -> Glue Job
 #
-# Aunque el Glue Job se está dejando para otra etapa de despliegue, esta lambda ya
-# prepara la estructura de sesión para que el pipeline ETL pueda reutilizarla.
+
 
 import boto3
 import json

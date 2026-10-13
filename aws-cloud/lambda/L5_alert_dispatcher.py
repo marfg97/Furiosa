@@ -16,8 +16,6 @@ Output:  SNS push + AppSync WebSocket update
 # Flujo del proyecto:
 #   L1/L3 -> L5 -> SNS -> Android / dashboard / TTS
 #
-# Es la capa final del sistema para convertir una detección técnica en una alerta
-# útil y accionable para el conductor o el equipo responsable.
 
 import boto3
 import json

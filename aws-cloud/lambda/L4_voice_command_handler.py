@@ -60,13 +60,14 @@ INTENCIONES QUE PUEDES MANEJAR:
 5. HISTORY - Historial: "cómo conduje ayer", "mejor sesión del mes"
 
 Responde SIEMPRE en este formato JSON exacto:
-{
+{{
   "intent": "QUERY|COMMAND|MAINTENANCE|STATUS|HISTORY",
   "response_text": "Tu respuesta al usuario",
   "action": "none|start_recording|stop_recording|mark_waypoint|reset_oil|reset_brake_front|reset_brake_rear|reset_chain|reset_tire_front|reset_tire_rear",
-  "action_params": {},
+  "action_params": {{}} ,
   "language": "es|en"
-}"""
+}}
+"""
 
 
 def get_context(device_id):
