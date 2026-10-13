@@ -1,23 +1,3 @@
-"""
-L1: realtime-monitor
-Triggered by IoT Core Rule every message (moto/data)
-Evalúa umbrales en tiempo real y dispara alertas.
-
-Trigger: IoT Rule → Lambda
-Input:   Payload raw de moto/data
-Output:  Invoca L5 alert-dispatcher si hay alerta
-"""
-
-# Responsabilidad principal:
-# - validar cada lectura recibida desde el dispositivo IoT
-# - detectar condiciones fuera de rango
-# - escribir alertas en DynamoDB y disparar alertas a L5
-#
-# Flujo del proyecto:
-#   IoT Core -> L1 -> DynamoDB(Furiosa_Alerts / Furiosa_DeviceState) -> L5 -> SNS
-#
-# Este nivel actúa como primera línea de defensa para seguridad operativa de la moto.
-
 import boto3
 import json
 import os
@@ -207,7 +187,7 @@ def dispatch_alert(device_id, alert):
     """Invoca L5 alert-dispatcher para enviar la alerta al usuario."""
     try:
         lambda_client.invoke(
-            FunctionName="furiosa-alert-dispatcher",
+            FunctionName="L5-alert-dispatcher",
             InvocationType="Event",  # asíncrono
             Payload=json.dumps(
                 {

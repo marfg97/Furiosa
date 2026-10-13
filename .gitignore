@@ -50,3 +50,5 @@ gradle.properties
 
 # AWS IoT SDK (dependency)
 aws-iot-device-sdk-python-v2/
+
+aws-cloud/lambda/__pycache__/*
