@@ -64,6 +64,7 @@ jobs:
         with:
           role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
           aws-region: us-east-1
+          audience: sts.amazonaws.com 
 
       - name: Package Lambda
         run: |
