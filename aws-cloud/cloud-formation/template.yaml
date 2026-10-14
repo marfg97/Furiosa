@@ -1,9 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: 'Furiosa Moto IoT - Infraestructura Base (Arquitectura AWS)'
 
-# Plantilla principal de infraestructura para el entorno de stage.
-# Organiza los recursos por capas funcionales para facilitar lectura, mantenimiento y despliegue
-
 Parameters:
   ProjectName:
     Type: String
@@ -19,7 +16,7 @@ Parameters:
     Type: String
     AllowedValues: [true, false]
     Default: false
-    Description: 'Si se establece en true, la plantilla creará los modelos y endpoints de SageMaker. Usar true sólo cuando los artefactos de modelo estén en S3.'
+    Description: 'Si se establece en true, la plantilla crear? los modelos y endpoints de SageMaker. Usar true s?lo cuando los artefactos de modelo est?n en S3.'
 
   DeviceThingName:
     Type: String
@@ -35,11 +32,7 @@ Conditions:
   CreateSageMakerResourcesCondition: !Equals [ !Ref CreateSageMakerResources, 'true' ]
 
 Resources:
-  # =========================================================
-  # CAPA 1: ALMACENAMIENTO Y PERSISTENCIA
-  # - S3 para datos crudos, stage y artefactos ML
-  # - DynamoDB para telemetría, sesiones, alertas y estado
-  # =========================================================
+  # --- CAPA DE ALMACENAMIENTO (S3 y DynamoDB) ---
   
   # Bucket S3 para datos crudos, stage y ML
   FuriosaDataBucket:
@@ -60,12 +53,7 @@ Resources:
       Tags:
         - Key: Project
           Value: !Ref ProjectName
-  # --- CAPA DE BASE DE DATOS (DynamoDB) ---
 
-  # Telemetría principal del vehículo: guarda cada lectura del dispositivo
-  # (velocidad, temperatura, vibración, sensores, estado operacional, etc.).
-  # Sirve como histórico de tiempo real para dashboards, validación de eventos,
-  # auditoría y análisis de comportamiento del vehículo.
   FuriosaTelemetryTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -74,7 +62,7 @@ Resources:
         - AttributeName: device_id
           AttributeType: S
         - AttributeName: timestamp
-          AttributeType: N
+          AttributeType: S
       KeySchema:
         - AttributeName: device_id
           KeyType: HASH
@@ -85,9 +73,6 @@ Resources:
         - Key: Project
           Value: !Ref ProjectName
 
-  # Registro de sesiones operativas: identifica cada ciclo de uso o viaje.
-  # Sirve para agrupar telemetría por sesión, medir duración, correlacionar
-  # eventos, y asociar predicciones o alertas con un mismo recorrido/uso.
   FuriosaSessionsTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -103,11 +88,6 @@ Resources:
         - Key: Project
           Value: !Ref ProjectName
 
-
-  # Resultados del modelo de mantenimiento predictivo.
-  # Almacena las predicciones para componentes como aceite, frenos, cadena,
-  # neumáticos y urgencia de servicio. Sirve para priorizar mantenimientos y
-  # mostrar recomendaciones dentro del dashboard/alertas del sistema.
   FuriosaPredictionsTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -123,10 +103,6 @@ Resources:
         - Key: Project
           Value: !Ref ProjectName
 
-  # Historial de mantenimiento del vehículo.
-  # Guarda eventos, tareas, intervenciones y estado del equipo en cada punto
-  # de servicio. Sirve para rastrear qué se reparó, cuándo y qué recomendación
-  # fue asumida o descartada.
   FuriosaMaintenanceTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -142,10 +118,6 @@ Resources:
         - Key: Project
           Value: !Ref ProjectName
 
-  # Registro de alertas operativas del sistema.
-  # Se usa para guardar eventos críticos o importantes generados por el
-  # monitoreo en tiempo real, facilitando la trazabilidad, análisis e historial
-  # de incidentes y notificaciones a usuarios o equipos.
   FuriosaAlertsTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -161,10 +133,6 @@ Resources:
         - Key: Project
           Value: !Ref ProjectName
 
-  # Estado actual del dispositivo o moto.
-  # Guarda el último valor conocido de cada condición crítica para permitir
-  # consultas rápidas por parte de Lambdas y dashboards. Sirve como caché del
-  # estado vivo del hardware y facilita la lógica de monitoreo operativo.
   FuriosaDeviceStateTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -180,10 +148,6 @@ Resources:
         - Key: Project
           Value: !Ref ProjectName
 
-  # Estado en vivo de la sesión activa.
-  # Mantiene el seguimiento del progreso y del estado actual de un viaje o
-  # sesión en ejecución. Se usa para conocer si una sesión está activa,
-  # pausada, finalizada o requiere intervención en tiempo real.
   FuriosaSessionStateTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -200,14 +164,8 @@ Resources:
           Value: !Ref ProjectName
 
 
-  # =========================================================
-  # CAPA 2: IoT Y EVENTOS
-  # - Thing virtual del dashboard Android
-  # - Topic de alertas SNS
-  # - Regla de ingestión desde MQTT hacia S3/DynamoDB/Lambda
-  # =========================================================
-
-  # Representa el dispositivo o panel de Android conectado a Furiosa.
+ # --- CAPA DE IoT INGESTA  ---
+  
   FuriosaThing:
     Type: AWS::IoT::Thing
     Properties:
@@ -217,7 +175,6 @@ Resources:
           type: android-dashboard
           project: !Ref ProjectName
 
-  # Canal de notificación para alertas generadas por el pipeline de monitoreo.
   FuriosaAlertsTopic:
     Type: AWS::SNS::Topic
     Properties:
@@ -226,11 +183,7 @@ Resources:
       Subscription:
         - Endpoint: !Ref AlertEmail
           Protocol: email
-  # =========================================================
-  # CAPA 3: RED Y SEGURIDAD
-  # - VPC pública con subredes para recursos de cómputo y SageMaker
-  # - Gateway Internet para acceso exterior y conectividad de servicios
-  # =========================================================
+
   FuriosaVpc:
     Type: AWS::EC2::VPC
     Properties:
@@ -318,18 +271,12 @@ Resources:
         - Key: Project
           Value: !Ref ProjectName
 
-  # =========================================================
-  # CAPA 4: LOGS E IAM
-  # - Logs de errores de IoT
-  # - Roles para la regla de ingestión y para Lambdas
-  # =========================================================
   IoTErrorLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /aws/iot/furiosa-errors
       RetentionInDays: 30
 
-  # Rol de ejecución de la regla IoT: permite escribir a S3, DynamoDB y CloudWatch.
   IoTRuleRole:
     Type: AWS::IAM::Role
     Properties:
@@ -363,11 +310,14 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/iot/furiosa-errors:*'
+                
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !GetAtt L1RealtimeMonitorFunction.Arn
+                  - !GetAtt L2SessionDetectorFunction.Arn
 
-
-  
-  # Regla IoT central: recibe mensajes del tópico 'moto/data' y los enruta
-  # a almacenamiento, base de datos y procesamiento en Lambda.
   FuriosaDataRule:
     Type: AWS::IoT::TopicRule
     Properties:
@@ -393,8 +343,6 @@ Resources:
           - Lambda:
               FunctionArn: !GetAtt L2SessionDetectorFunction.Arn
 
-  # Rol compartido por todas las funciones Lambda del pipeline de Furiosa.
-  # Centraliza permisos para DynamoDB, SNS, Lambda y SageMaker.
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -438,14 +386,9 @@ Resources:
                 Action:
                   - sagemaker:InvokeEndpoint
                 Resource: '*'
-  # =========================================================
-  # CAPA 5: COMPUTO (Lambdas)
-  # Cada una representa un nivel del pipeline de analítica y automatización.
-  # Las funciones quedan definidas con payload placeholder y se despliegan
-  # en CI/CD cuando el código real ya está listo.
-  # =========================================================
+  # --- CAPA DE COMPUTO (Lambdas y permisos) ---
 
-  # L1 - monitor en tiempo real: detecta anomalías de telemetría operativa.
+# Lambda: L1 - Monitor en tiempo real (c?digo en aws-cloud/lambda/L1_realtime_monitor.py)
   L1RealtimeMonitorFunction:
     Type: AWS::Lambda::Function
     Metadata:
@@ -467,7 +410,6 @@ Resources:
           def lambda_handler(event, context):
               return {"statusCode": 200, "body": "placeholder - pendiente despliegue CI/CD"}
 
-  # L2 - detector de sesión: identifica ventanas operativas y correlaciones.
   L2SessionDetectorFunction:
     Type: AWS::Lambda::Function
     Metadata:
@@ -488,7 +430,6 @@ Resources:
           def lambda_handler(event, context):
               return {"statusCode": 200, "body": "placeholder - pendiente despliegue CI/CD"}
 
-  # L3 - predicción de mantenimiento: consume modelos y genera recomendaciones.
   L3MaintenancePredictFunction:
     Type: AWS::Lambda::Function
     Metadata:
@@ -510,7 +451,6 @@ Resources:
           def lambda_handler(event, context):
               return {"statusCode": 200, "body": "placeholder - pendiente despliegue CI/CD"}
 
-  # L4 - manejo de comandos por voz: procesa eventos de control/comandos.
   L4VoiceCommandHandlerFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -531,7 +471,6 @@ Resources:
           def lambda_handler(event, context):
               return {"statusCode": 200, "body": "placeholder L4"}
 
-  # L5 - despachador de alertas: centraliza la publicación y el enrutamiento.
   L5AlertDispatcherFunction:
     Type: AWS::Lambda::Function
     Metadata:
@@ -576,263 +515,7 @@ Resources:
       Principal: iot.amazonaws.com
       SourceArn: !Sub 'arn:aws:iot:${AWS::Region}:${AWS::AccountId}:rule/*'
 
-  # =========================================================
-  # CAPA 6: ML / SageMaker (opcional)
-  # Solo se crea si el parámetro CreateSageMakerResources se activa.
-  # =========================================================
-  FuriosaSageMakerExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: sagemaker.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AmazonSageMakerFullAccess
-      Tags:
-        - Key: Project
-          Value: !Ref ProjectName
-
-  FuriosaMaintenanceModelOil:
-    Condition: CreateSageMakerResourcesCondition
-    Type: AWS::SageMaker::Model
-    Properties:
-      ModelName: furiosa-maintenance-oil
-      ExecutionRoleArn: !GetAtt FuriosaSageMakerExecutionRole.Arn
-      PrimaryContainer:
-        Image: !Sub '683313688378.dkr.ecr.${AWS::Region}.amazonaws.com/sagemaker-xgboost:1-0-1'
-        ModelDataUrl: !Sub 's3://${S3BucketName}/ml/models/placeholder/oil-model.tar.gz'
-      VpcConfig:
-        Subnets:
-          - !Ref FuriosaPublicSubnetA
-          - !Ref FuriosaPublicSubnetB
-        SecurityGroupIds:
-          - !Ref FuriosaSageMakerSecurityGroup
-
-  FuriosaMaintenanceModelBrakeFront:
-    Condition: CreateSageMakerResourcesCondition
-    Type: AWS::SageMaker::Model
-    Properties:
-      ModelName: furiosa-maintenance-brake-front
-      ExecutionRoleArn: !GetAtt FuriosaSageMakerExecutionRole.Arn
-      PrimaryContainer:
-        Image: !Sub '683313688378.dkr.ecr.${AWS::Region}.amazonaws.com/sagemaker-xgboost:1-0-1'
-        ModelDataUrl: !Sub 's3://${S3BucketName}/ml/models/placeholder/brake-front-model.tar.gz'
-      VpcConfig:
-        Subnets:
-          - !Ref FuriosaPublicSubnetA
-          - !Ref FuriosaPublicSubnetB
-        SecurityGroupIds:
-          - !Ref FuriosaSageMakerSecurityGroup
-
-  FuriosaMaintenanceModelBrakeRear:
-    Condition: CreateSageMakerResourcesCondition
-    Type: AWS::SageMaker::Model
-    Properties:
-      ModelName: furiosa-maintenance-brake-rear
-      ExecutionRoleArn: !GetAtt FuriosaSageMakerExecutionRole.Arn
-      PrimaryContainer:
-        Image: !Sub '683313688378.dkr.ecr.${AWS::Region}.amazonaws.com/sagemaker-xgboost:1-0-1'
-        ModelDataUrl: !Sub 's3://${S3BucketName}/ml/models/placeholder/brake-rear-model.tar.gz'
-      VpcConfig:
-        Subnets:
-          - !Ref FuriosaPublicSubnetA
-          - !Ref FuriosaPublicSubnetB
-        SecurityGroupIds:
-          - !Ref FuriosaSageMakerSecurityGroup
-
-  FuriosaMaintenanceModelChain:
-    Condition: CreateSageMakerResourcesCondition
-    Type: AWS::SageMaker::Model
-    Properties:
-      ModelName: furiosa-maintenance-chain
-      ExecutionRoleArn: !GetAtt FuriosaSageMakerExecutionRole.Arn
-      PrimaryContainer:
-        Image: !Sub '683313688378.dkr.ecr.${AWS::Region}.amazonaws.com/sagemaker-xgboost:1-0-1'
-        ModelDataUrl: !Sub 's3://${S3BucketName}/ml/models/placeholder/chain-model.tar.gz'
-      VpcConfig:
-        Subnets:
-          - !Ref FuriosaPublicSubnetA
-          - !Ref FuriosaPublicSubnetB
-        SecurityGroupIds:
-          - !Ref FuriosaSageMakerSecurityGroup
-
-  FuriosaMaintenanceModelTireFront:
-    Condition: CreateSageMakerResourcesCondition
-    Type: AWS::SageMaker::Model
-    Properties:
-      ModelName: furiosa-maintenance-tire-front
-      ExecutionRoleArn: !GetAtt FuriosaSageMakerExecutionRole.Arn
-      PrimaryContainer:
-        Image: !Sub '683313688378.dkr.ecr.${AWS::Region}.amazonaws.com/sagemaker-xgboost:1-0-1'
-        ModelDataUrl: !Sub 's3://${S3BucketName}/ml/models/placeholder/tire-front-model.tar.gz'
-      VpcConfig:
-        Subnets:
-          - !Ref FuriosaPublicSubnetA
-          - !Ref FuriosaPublicSubnetB
-        SecurityGroupIds:
-          - !Ref FuriosaSageMakerSecurityGroup
-
-  FuriosaMaintenanceModelTireRear:
-    Condition: CreateSageMakerResourcesCondition
-    Type: AWS::SageMaker::Model
-    Properties:
-      ModelName: furiosa-maintenance-tire-rear
-      ExecutionRoleArn: !GetAtt FuriosaSageMakerExecutionRole.Arn
-      PrimaryContainer:
-        Image: !Sub '683313688378.dkr.ecr.${AWS::Region}.amazonaws.com/sagemaker-xgboost:1-0-1'
-        ModelDataUrl: !Sub 's3://${S3BucketName}/ml/models/placeholder/tire-rear-model.tar.gz'
-      VpcConfig:
-        Subnets:
-          - !Ref FuriosaPublicSubnetA
-          - !Ref FuriosaPublicSubnetB
-        SecurityGroupIds:
-          - !Ref FuriosaSageMakerSecurityGroup
-
-  FuriosaMaintenanceModelUrgency:
-    Condition: CreateSageMakerResourcesCondition
-    Type: AWS::SageMaker::Model
-    Properties:
-      ModelName: furiosa-maintenance-urgency
-      ExecutionRoleArn: !GetAtt FuriosaSageMakerExecutionRole.Arn
-      PrimaryContainer:
-        Image: !Sub '683313688378.dkr.ecr.${AWS::Region}.amazonaws.com/sagemaker-xgboost:1-0-1'
-        ModelDataUrl: !Sub 's3://${S3BucketName}/ml/models/placeholder/urgency-model.tar.gz'
-      VpcConfig:
-        Subnets:
-          - !Ref FuriosaPublicSubnetA
-          - !Ref FuriosaPublicSubnetB
-        SecurityGroupIds:
-          - !Ref FuriosaSageMakerSecurityGroup
-
-  FuriosaEndpointConfigOil:
-    Condition: CreateSageMakerResourcesCondition
-    Type: AWS::SageMaker::EndpointConfig
-    Properties:
-      ProductionVariants:
-        - InitialInstanceCount: 1
-          InitialVariantWeight: 1.0
-          InstanceType: ml.m5.large
-          ModelName: furiosa-maintenance-oil
-          VariantName: AllTraffic
-
-  FuriosaEndpointOil:
-    Condition: CreateSageMakerResourcesCondition
-    Type: AWS::SageMaker::Endpoint
-    Properties:
-      EndpointConfigName: !GetAtt FuriosaEndpointConfigOil.EndpointConfigName
-      EndpointName: furiosa-maintenance-oil
-
-  FuriosaEndpointConfigBrakeFront:
-    Condition: CreateSageMakerResourcesCondition
-    Type: AWS::SageMaker::EndpointConfig
-    Properties:
-      ProductionVariants:
-        - InitialInstanceCount: 1
-          InitialVariantWeight: 1.0
-          InstanceType: ml.m5.large
-          ModelName: furiosa-maintenance-brake-front
-          VariantName: AllTraffic
-
-  FuriosaEndpointBrakeFront:
-    Condition: CreateSageMakerResourcesCondition
-    Type: AWS::SageMaker::Endpoint
-    Properties:
-      EndpointConfigName: !GetAtt FuriosaEndpointConfigBrakeFront.EndpointConfigName
-      EndpointName: furiosa-maintenance-brake-front
-
-  FuriosaEndpointConfigBrakeRear:
-    Condition: CreateSageMakerResourcesCondition
-    Type: AWS::SageMaker::EndpointConfig
-    Properties:
-      ProductionVariants:
-        - InitialInstanceCount: 1
-          InitialVariantWeight: 1.0
-          InstanceType: ml.m5.large
-          ModelName: furiosa-maintenance-brake-rear
-          VariantName: AllTraffic
-
-  FuriosaEndpointBrakeRear:
-    Condition: CreateSageMakerResourcesCondition
-    Type: AWS::SageMaker::Endpoint
-    Properties:
-      EndpointConfigName: !GetAtt FuriosaEndpointConfigBrakeRear.EndpointConfigName
-      EndpointName: furiosa-maintenance-brake-rear
-
-  FuriosaEndpointConfigChain:
-    Condition: CreateSageMakerResourcesCondition
-    Type: AWS::SageMaker::EndpointConfig
-    Properties:
-      ProductionVariants:
-        - InitialInstanceCount: 1
-          InitialVariantWeight: 1.0
-          InstanceType: ml.m5.large
-          ModelName: furiosa-maintenance-chain
-          VariantName: AllTraffic
-
-  FuriosaEndpointChain:
-    Condition: CreateSageMakerResourcesCondition
-    Type: AWS::SageMaker::Endpoint
-    Properties:
-      EndpointConfigName: !GetAtt FuriosaEndpointConfigChain.EndpointConfigName
-      EndpointName: furiosa-maintenance-chain
-
-  FuriosaEndpointConfigTireFront:
-    Condition: CreateSageMakerResourcesCondition
-    Type: AWS::SageMaker::EndpointConfig
-    Properties:
-      ProductionVariants:
-        - InitialInstanceCount: 1
-          InitialVariantWeight: 1.0
-          InstanceType: ml.m5.large
-          ModelName: furiosa-maintenance-tire-front
-          VariantName: AllTraffic
-
-  FuriosaEndpointTireFront:
-    Condition: CreateSageMakerResourcesCondition
-    Type: AWS::SageMaker::Endpoint
-    Properties:
-      EndpointConfigName: !GetAtt FuriosaEndpointConfigTireFront.EndpointConfigName
-      EndpointName: furiosa-maintenance-tire-front
-
-  FuriosaEndpointConfigTireRear:
-    Condition: CreateSageMakerResourcesCondition
-    Type: AWS::SageMaker::EndpointConfig
-    Properties:
-      ProductionVariants:
-        - InitialInstanceCount: 1
-          InitialVariantWeight: 1.0
-          InstanceType: ml.m5.large
-          ModelName: furiosa-maintenance-tire-rear
-          VariantName: AllTraffic
-
-  FuriosaEndpointTireRear:
-    Condition: CreateSageMakerResourcesCondition
-    Type: AWS::SageMaker::Endpoint
-    Properties:
-      EndpointConfigName: !GetAtt FuriosaEndpointConfigTireRear.EndpointConfigName
-      EndpointName: furiosa-maintenance-tire-rear
-
-  FuriosaEndpointConfigUrgency:
-    Condition: CreateSageMakerResourcesCondition
-    Type: AWS::SageMaker::EndpointConfig
-    Properties:
-      ProductionVariants:
-        - InitialInstanceCount: 1
-          InitialVariantWeight: 1.0
-          InstanceType: ml.m5.large
-          ModelName: furiosa-maintenance-urgency
-          VariantName: AllTraffic
-
-  FuriosaEndpointUrgency:
-    Condition: CreateSageMakerResourcesCondition
-    Type: AWS::SageMaker::Endpoint
-    Properties:
-      EndpointConfigName: !GetAtt FuriosaEndpointConfigUrgency.EndpointConfigName
-      EndpointName: furiosa-maintenance-urgency
+  
 
 Outputs:
   BucketName:
@@ -840,7 +523,7 @@ Outputs:
     Value: !Ref FuriosaDataBucket
 
   TelemetryTableName:
-    Description: Tabla de telemetría en DynamoDB.
+    Description: Tabla de telemetr?a en DynamoDB.
     Value: !Ref FuriosaTelemetryTable
 
   SessionTableName:

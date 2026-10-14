@@ -1,0 +1,70 @@
+name: Deploy CloudFormation Stack
+
+on:
+  push:
+    branches: [ "infra-cloud" ]
+    paths:
+      - 'aws-cloud/cloud-formation/template.yaml'
+      - '.github/workflows/deploy-infra.yml'
+  workflow_dispatch:  # Permite ejecución manual desde GitHub
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          aws-region: us-east-1
+          audience: sts.amazonaws.com
+
+      - name: Validate CloudFormation Template
+        run: |
+          aws cloudformation validate-template \
+            --template-body file://aws-cloud/cloud-formation/template.yaml \
+            --region us-east-1
+
+  deploy:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          aws-region: us-east-1
+          audience: sts.amazonaws.com
+
+      - name: Deploy CloudFormation Stack
+        run: |
+          aws cloudformation deploy \
+            --stack-name furiosa-infra \
+            --template-file aws-cloud/cloud-formation/template.yaml \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --parameter-overrides \
+              ProjectName=Furiosa \
+              S3BucketName=furiosa-data-0454 \
+              DeviceThingName=moto_android_01 \
+              CreateSageMakerResources=false \
+              AlertEmail=admin@example.com \
+            --no-fail-on-empty-changeset \
+            --region us-east-1
+
+      - name: Show Stack Status
+        run: |
+          aws cloudformation describe-stacks \
+            --stack-name furiosa-infra \
+            --region us-east-1 \
+            --query "Stacks[0].{Status:StackStatus,LastUpdate:LastUpdatedTime}" \
+            --output table
