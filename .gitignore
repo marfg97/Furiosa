@@ -52,3 +52,4 @@ gradle.properties
 aws-iot-device-sdk-python-v2/
 
 aws-cloud/lambda/__pycache__/*
+aws-cloud/etl/__pycache__/*
