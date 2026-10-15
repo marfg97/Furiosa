@@ -372,9 +372,6 @@ Resources:
         AwsIotSqlVersion: '2016-03-23'
         RuleDisabled: false
         Actions:
-          - CloudWatchLogs:
-              LogGroupName: !Ref IoTErrorLogGroup
-              RoleArn: !GetAtt IoTRuleRole.Arn
           - DynamoDB:
               TableName: !Ref FuriosaTelemetryTableRaw
               HashKeyField: device_id
@@ -649,7 +646,7 @@ Resources:
       GlueVersion: '3.0'
       Command:
         Name: pythonshell
-        ScriptLocation: !Sub 's3://${S3BucketName}/glue-scripts/G1_raw_to_stage.py'
+        ScriptLocation: !Sub 's3://${S3BucketName}/glue-scripts/raw_to_stage.py'
         PythonVersion: '3'
       DefaultArguments:
         '--job-language': python
