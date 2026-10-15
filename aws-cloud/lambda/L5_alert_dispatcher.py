@@ -17,6 +17,7 @@ Output:  SNS push + AppSync WebSocket update
 #   L1/L3 -> L5 -> SNS -> Android / dashboard / TTS
 #
 
+import os
 import boto3
 import json
 import time
@@ -26,7 +27,7 @@ appsync = boto3.client("appsync", region_name="us-east-1")
 dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
 
 TABLE_ALERTS = dynamodb.Table("Furiosa_Alerts")
-SNS_TOPIC_ARN = "arn:aws:sns:us-east-1:329068432517:furiosa-alerts"
+SNS_TOPIC_ARN = os.environ.get("ALERTS_TOPIC_ARN", "arn:aws:sns:us-east-1:597663815760:Furiosa-alerts")
 
 # ─── Prioridad de alertas ────────────────────────────────────
 PRIORITY = {"critical": 3, "warn": 2, "info": 1}

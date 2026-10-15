@@ -25,6 +25,7 @@ TABLE_STATE = dynamodb.Table("Furiosa_DeviceState")
 TABLE_SESSION_STATE = dynamodb.Table("Furiosa_Session_State")
 
 L5_FUNCTION_NAME = os.environ.get("ALERT_DISPATCHER_FUNCTION", "L5_alert_dispatcher")
+ALERTS_TOPIC_ARN = os.environ.get("ALERTS_TOPIC_ARN", "arn:aws:sns:us-east-1:597663815760:Furiosa-alerts")
 
 # ─── Umbrales configurables ───────────────────────────────────
 THRESHOLDS = {
