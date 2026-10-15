@@ -54,10 +54,10 @@ Resources:
         - Key: Project
           Value: !Ref ProjectName
 
-  FuriosaTelemetryTable:
+  FuriosaTelemetryTableRaw:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub '${ProjectName}_Telemetry'
+      TableName: !Sub '${ProjectName}_Telemetry_Raw'
       AttributeDefinitions:
         - AttributeName: device_id
           AttributeType: S
@@ -304,7 +304,7 @@ Resources:
                 Action:
                   - dynamodb:PutItem
                 Resource:
-                  - !GetAtt FuriosaTelemetryTable.Arn
+                  - !GetAtt FuriosaTelemetryTableRaw.Arn
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
@@ -332,7 +332,7 @@ Resources:
               Key: raw/year=${year}/month=${month}/day=${day}/${timestamp()}.json
               RoleArn: !GetAtt IoTRuleRole.Arn
           - DynamoDB:
-              TableName: !Ref FuriosaTelemetryTable
+              TableName: !Ref FuriosaTelemetryTableRaw
               HashKeyField: device_id
               HashKeyValue: '${device_id}'
               RangeKeyField: timestamp
@@ -524,7 +524,7 @@ Outputs:
 
   TelemetryTableName:
     Description: Tabla de telemetr?a en DynamoDB.
-    Value: !Ref FuriosaTelemetryTable
+    Value: !Ref FuriosaTelemetryTableRaw
 
   SessionTableName:
     Description: Tabla de sesiones.
