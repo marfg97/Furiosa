@@ -587,82 +587,7 @@ Resources:
       SourceArn: !Sub 'arn:aws:iot:${AWS::Region}:${AWS::AccountId}:rule/*'
 
   
-  # ---------------------------------------------------------------------------
-  # 2.6) Glue ETL
-  #     Procesa los datos de sesión para exportar CSV/JSON y disparar la etapa
-  #     de mantenimiento (L3) al cerrar la sesión.
-  # ---------------------------------------------------------------------------
-
-  # Rol de Glue con permisos para leer DynamoDB, exportar a S3 y ejecutar L3.
-  GlueExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub '${ProjectName}-glue-role'
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: glue.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
-      Policies:
-        - PolicyName: FuriosaGluePolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action: [s3:PutObject, s3:GetObject, s3:ListBucket]
-                Resource:
-                  - !Sub 'arn:aws:s3:::${S3BucketName}'
-                  - !Sub 'arn:aws:s3:::${S3BucketName}/*'
-              - Effect: Allow
-                Action:
-                  - dynamodb:Query
-                  - dynamodb:Scan
-                  - dynamodb:GetItem
-                  - dynamodb:PutItem
-                  - dynamodb:UpdateItem
-                Resource:
-                  - !GetAtt FuriosaTelemetryTableRaw.Arn
-                  - !GetAtt FuriosaSessionsTable.Arn
-                  - !GetAtt FuriosaSessionStateTable.Arn
-                  - !GetAtt FuriosaMaintenanceTable.Arn
-              - Effect: Allow
-                Action: [lambda:InvokeFunction]
-                Resource: !GetAtt L3MaintenancePredictFunction.Arn
-
-  # Job G1: toma datos crudos y los prepara para stage + export a S3.
-  G1RawToStageJob:
-    Type: AWS::Glue::Job
-    Properties:
-      Name: !Sub '${ProjectName}-G1-raw-to-stage'
-      Role: !GetAtt GlueExecutionRole.Arn
-      Description: >
-        Lee registros raw de DynamoDB al fin de sesión,
-        calcula métricas de stage, exporta CSV a S3 raw/sessions/
-        y JSON a S3 stage/sessions/, luego invoca L3.
-      GlueVersion: '3.0'
-      Command:
-        Name: pythonshell
-        ScriptLocation: !Sub 's3://${S3BucketName}/glue-scripts/raw_to_stage.py'
-        PythonVersion: '3'
-      DefaultArguments:
-        '--job-language': python
-        '--bucket': !Ref S3BucketName
-        '--session_id': 'PLACEHOLDER'
-        '--device_id': 'PLACEHOLDER'
-        '--start_ts': '0'
-        '--end_ts': '0'
-        '--l3_function': !Ref L3MaintenancePredictFunction
-        '--enable-job-insights': 'false'
-      MaxCapacity: 0.0625
-      Timeout: 30
-      Tags:
-        Project: !Ref ProjectName
-
-
+ 
 
 
 
@@ -695,7 +620,3 @@ Outputs:
     Description: Regla IoT para ingestion.
     Value: !Ref FuriosaDataRule
     
-  GlueRoleArn:
-    Description: ARN del role de Glue
-    Value: !GetAtt GlueExecutionRole.Arn
-
