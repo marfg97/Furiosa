@@ -56,7 +56,6 @@ jobs:
               ProjectName=Furiosa \
               S3BucketName=furiosa-data-0454 \
               DeviceThingName=moto_android_01 \
-              CreateSageMakerResources=false \
               AlertEmail=admin@example.com \
             --no-fail-on-empty-changeset \
             --region us-east-1
